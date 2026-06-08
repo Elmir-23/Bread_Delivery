@@ -1,17 +1,22 @@
 import { useState, useEffect } from "react";
 import { db } from "./firebase";
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 
 const SESS = [
   { id: "morning", label: "Morning", icon: "🌅", sub: "Given + collect leftovers" },
   { id: "afternoon", label: "Afternoon", icon: "☀️", sub: "Given only" },
   { id: "evening", label: "Evening", icon: "🌙", sub: "Given only" },
 ];
+const SESS_WITH_DEBT = [
+  ...SESS,
+  { id: "debt", label: "Debt", icon: "💰", sub: "Collect payment" },
+];
 const DEF_SHOPS = ["Shahin","Murad","Alasgar","50_Gapik","Fuad","Elbrus","Ramal","Suraddin","Khila","Kolya","Nur-S"];
 const DEFAULT_DB = {
   pin: "1234",
   prices: { kura: 1.5, railway: 2.0 },
   deliveries: {},
+  debts: {},
   shops: DEF_SHOPS.map(n => ({ name: n, kura: null, railway: null }))
 };
 
@@ -78,6 +83,7 @@ export default function App() {
   const [selShop, setSelShop] = useState(null);
   const [selSess, setSelSess] = useState(null);
   const [entryVals, setEntryVals] = useState({});
+  const [collectedInput, setCollectedInput] = useState("");
   const [ownerUnlocked, setOwnerUnlocked] = useState(false);
   const [ownerTab, setOwnerTab] = useState("dashboard");
   const [pinBuf, setPinBuf] = useState("");
@@ -96,14 +102,12 @@ export default function App() {
   const [pinOld, setPinOld] = useState("");
   const [pinNew, setPinNew] = useState("");
 
-  // ── Firebase: listen to live data ──
   useEffect(() => {
     const ref = doc(db, "app", "data");
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         setDbData(snap.data());
       } else {
-        // First time — write defaults
         setDoc(ref, DEFAULT_DB);
         setDbData(DEFAULT_DB);
       }
@@ -118,11 +122,10 @@ export default function App() {
   };
 
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
-
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
   const shopRail = (i) => db_data?.shops[i]?.railway ?? db_data?.prices?.railway ?? 2.0;
+  const TODAY = todayStr();
 
-  // PIN
   useEffect(() => {
     if (pinBuf.length < 4) return;
     if (pinBuf === db_data?.pin) {
@@ -142,32 +145,51 @@ export default function App() {
     setPinBuf(p => p + k);
   };
 
-  const TODAY = todayStr();
-
-  // Delivery entry
   const openDeliveryEntry = (shopIdx, sessId) => {
     setSelShop(shopIdx); setSelSess(sessId);
     const ex = db_data?.deliveries?.[TODAY]?.[shopIdx]?.[sessId] || {};
     setEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
     setView("entry");
   };
+
   const adjDelivery = (g, t, d) => setEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
+
   const saveDeliveryEntry = async () => {
     const nd = { ...db_data, deliveries: { ...db_data.deliveries, [TODAY]: { ...(db_data.deliveries?.[TODAY] || {}), [selShop]: { ...(db_data.deliveries?.[TODAY]?.[selShop] || {}) } } } };
     const obj = { given: { ...entryVals.given } };
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
+
+    // Debt: subtract old session value, add new session value
+    const prev = nd.deliveries[TODAY][selShop][selSess];
+    const prevVal = prev ? (prev.given?.kura || 0) * shopKura(selShop) + (prev.given?.railway || 0) * shopRail(selShop) : 0;
+    const newVal = (entryVals.given?.kura || 0) * shopKura(selShop) + (entryVals.given?.railway || 0) * shopRail(selShop);
     nd.deliveries[TODAY][selShop][selSess] = obj;
+    const debts = { ...(nd.debts || {}) };
+    debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
+    nd.debts = debts;
+
     await upd(nd); toast$("Saved ✓"); setTimeout(() => setView("session"), 300);
   };
 
-  // Owner edit entry
+  const saveDebtCollection = async () => {
+    const collected = parseFloat(collectedInput) || 0;
+    const debts = { ...(db_data.debts || {}) };
+    debts[selShop] = (debts[selShop] || 0) - collected;
+    await upd({ ...db_data, debts });
+    setCollectedInput("");
+    toast$("Debt updated ✓");
+    setTimeout(() => setView("session"), 300);
+  };
+
   const openEditEntry = (shopIdx, sessId) => {
     setEditSelShop(shopIdx); setEditSelSess(sessId);
     const ex = db_data?.deliveries?.[editDate]?.[shopIdx]?.[sessId] || {};
     setEditEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
     setEditView("date-entry");
   };
+
   const adjEdit = (g, t, d) => setEditEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
+
   const saveEditEntry = async () => {
     const nd = { ...db_data, deliveries: { ...db_data.deliveries, [editDate]: { ...(db_data.deliveries?.[editDate] || {}), [editSelShop]: { ...(db_data.deliveries?.[editDate]?.[editSelShop] || {}) } } } };
     const obj = { given: { ...editEntryVals.given } };
@@ -176,7 +198,6 @@ export default function App() {
     await upd(nd); toast$("Saved ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
 
-  // Stats
   const calcStats = (period) => {
     if (!db_data) return { totGK: 0, totGR: 0, totLK: 0, totLR: 0, totRev: 0, ss: {} };
     const t = todayStr(); let s = t;
@@ -254,14 +275,12 @@ export default function App() {
   const { totGK, totGR, totLK, totLR, totRev, ss } = calcStats(dashPeriod);
   const repStats = calcStats(repPeriod);
 
-  // ── Loading screen ──
   if (loading) return (
     <div style={{ ...c.wrap, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
       <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 14 }}>Loading…</div>
     </div>
   );
 
-  // ── Delivery screens ──
   const renderShopsScreen = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
@@ -270,10 +289,13 @@ export default function App() {
         {db_data.shops.map((s, i) => {
           const sd = db_data.deliveries?.[TODAY]?.[i] || {};
           const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
+          const debt = db_data.debts?.[i] || 0;
           return (
             <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
               {s.name}
               {done && <span style={{ ...c.tag, position: "absolute", top: 8, right: 8 }}>✓</span>}
+              {debt > 0 && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 4, fontWeight: 600 }}>{debt.toFixed(2)} ₼ debt</div>}
+              {debt < 0 && <div style={{ fontSize: 10, color: "var(--success-text)", marginTop: 4, fontWeight: 600 }}>{Math.abs(debt).toFixed(2)} ₼ credit</div>}
             </button>
           );
         })}
@@ -283,16 +305,36 @@ export default function App() {
 
   const renderSessionScreen = () => {
     const sd = db_data.deliveries?.[TODAY]?.[selShop] || {};
+    const debt = db_data.debts?.[selShop] || 0;
     return (
       <div>
         <div style={c.topbar}>
           <button style={c.backBtn} onClick={() => setView("shops")}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[selShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[selShop]?.name}</div>
+            <div style={{ fontSize: 12, color: debt > 0 ? "#dc2626" : debt < 0 ? "var(--success-text)" : "var(--text2)" }}>
+              {debt > 0 ? `Debt: ${debt.toFixed(2)} ₼` : debt < 0 ? `Credit: ${Math.abs(debt).toFixed(2)} ₼` : fmtDateShort(TODAY)}
+            </div>
+          </div>
         </div>
         <div style={c.pad}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Choose session</div>
           <div style={c.sessList}>
-            {SESS.map(s => {
+            {SESS_WITH_DEBT.map(s => {
+              if (s.id === "debt") {
+                const isCredit = debt < 0;
+                return (
+                  <button key="debt" style={{ ...c.sessBtn(false), borderColor: debt !== 0 ? (isCredit ? "var(--success-border)" : "#fca5a5") : "var(--border)" }} onClick={() => { setCollectedInput(""); setView("debt"); }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: isCredit ? "var(--success-text)" : debt > 0 ? "#dc2626" : "var(--text)" }}>💰 Debt</div>
+                      <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 2 }}>
+                        {debt === 0 ? "No debt" : isCredit ? `Credit: ${Math.abs(debt).toFixed(2)} ₼` : `Owes: ${debt.toFixed(2)} ₼`}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
+                  </button>
+                );
+              }
               const d = sd[s.id] || {};
               const has = d.given && (d.given.kura > 0 || d.given.railway > 0);
               let sub = s.sub;
@@ -305,6 +347,49 @@ export default function App() {
               );
             })}
           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDebtScreen = () => {
+    const currentDebt = db_data.debts?.[selShop] || 0;
+    const isCredit = currentDebt < 0;
+    const newBalance = currentDebt - (parseFloat(collectedInput) || 0);
+    return (
+      <div>
+        <div style={c.topbar}>
+          <button style={c.backBtn} onClick={() => setView("session")}>‹</button>
+          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[selShop]?.name} — Debt</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
+        </div>
+        <div style={c.pad}>
+          <div style={{ ...c.block, textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 6 }}>{isCredit ? "Credit (overpaid)" : "Current debt"}</div>
+            <div style={{ fontSize: 36, fontWeight: 700, color: isCredit ? "var(--success-text)" : currentDebt > 0 ? "#dc2626" : "var(--text)" }}>
+              {Math.abs(currentDebt).toFixed(2)} ₼
+            </div>
+          </div>
+          <div style={c.block}>
+            <div style={c.blockTitle}>Amount collected now</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input
+                type="number" min={0} step={0.01}
+                value={collectedInput}
+                onChange={e => setCollectedInput(e.target.value)}
+                placeholder="0.00"
+                style={{ flex: 1, padding: "10px 12px", fontSize: 20, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+              />
+              <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
+            </div>
+            {collectedInput !== "" && (
+              <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 8, textAlign: "right" }}>
+                New balance: <strong style={{ color: newBalance < 0 ? "var(--success-text)" : newBalance > 0 ? "#dc2626" : "var(--text)" }}>
+                  {newBalance.toFixed(2)} ₼
+                </strong>
+              </div>
+            )}
+          </div>
+          <button style={c.primaryBtn} onClick={saveDebtCollection}>Save</button>
         </div>
       </div>
     );
@@ -354,7 +439,6 @@ export default function App() {
     );
   };
 
-  // ── Owner: edit past dates ──
   const renderEditSection = () => {
     const isEditToday = editDate === todayStr();
     if (editView === "date-shops") {
@@ -369,7 +453,7 @@ export default function App() {
           </div>
           <div style={{ ...c.shopGrid, marginTop: 12 }}>
             {db_data.shops.map((s, i) => {
-              const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
+              const done = SESS.every(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.railway));
               return (
                 <button key={i} style={c.shopBtn} onClick={() => { setEditSelShop(i); setEditView("date-session"); }}>
                   {s.name}
@@ -413,19 +497,46 @@ export default function App() {
     }
   };
 
-  // ── Owner: dashboard ──
   const renderDashboard = () => {
     const revs = db_data.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
     const maxR = revs.length ? revs[0].rev : 1;
+    const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
+    const shopsInDebt = Object.values(db_data.debts || {}).filter(d => d > 0).length;
     return (
       <div style={c.pad}>
         <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
           {[["day","Today"],["week","7 days"],["month","30 days"]].map(([p,l]) => <button key={p} style={c.periodBtn(dashPeriod===p)} onClick={() => setDashPeriod(p)}>{l}</button>)}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
-          {[["Revenue",totRev.toFixed(2)+" ₼"],["Total given",totGK+totGR],["Kura given",totGK],["Railway given",totGR],["Leftovers back",totLK+totLR],["Net delivered",(totGK+totGR)-(totLK+totLR)]].map(([l,v]) => (
+          {[["Revenue",totRev.toFixed(2)+" ₼"],["Total given",totGK+totGR],["Kura given",totGK],["Railway given",totGR],["Leftovers back",totLK+totLR],["Net delivered",(totGK+totGR)-(totLK+totLR)],["Total debt",totalDebt.toFixed(2)+" ₼"],["Shops in debt",shopsInDebt]].map(([l,v]) => (
             <div key={l} style={c.metric}><div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>{l}</div><div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div></div>
           ))}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Debt by shop</div>
+        <div style={c.listCard}>
+          {db_data.shops.map((s, i) => {
+            const debt = db_data.debts?.[i] || 0;
+            if (debt === 0) return null;
+            return (
+              <div key={i} style={c.listRow(i === db_data.shops.length - 1)}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>
+                  {debt < 0 ? `+${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}
+                </div>
+              </div>
+            );
+          }).filter(Boolean).length ? db_data.shops.map((s, i) => {
+            const debt = db_data.debts?.[i] || 0;
+            if (debt === 0) return null;
+            return (
+              <div key={i} style={c.listRow(i === db_data.shops.length - 1)}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>
+                  {debt < 0 ? `Credit: ${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}
+                </div>
+              </div>
+            );
+          }) : <div style={{ padding: "1.5rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No outstanding debts.</div>}
         </div>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Revenue by shop</div>
         {revs.length ? revs.map(x => (
@@ -439,7 +550,6 @@ export default function App() {
     );
   };
 
-  // ── Owner: reports ──
   const renderReports = () => {
     const { ss: rss } = repStats;
     const t = todayStr(); let s = t;
@@ -485,7 +595,6 @@ export default function App() {
     );
   };
 
-  // ── Owner: shops manager ──
   const renderShopsMgr = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10 }}>Leave price blank to use default.</div>
@@ -510,7 +619,6 @@ export default function App() {
     </div>
   );
 
-  // ── Owner: settings ──
   const renderSettings = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Default bread prices</div>
@@ -559,6 +667,7 @@ export default function App() {
           {view === "shops" && renderShopsScreen()}
           {view === "session" && renderSessionScreen()}
           {view === "entry" && renderEntryForm(entryVals, adjDelivery, saveDeliveryEntry, () => setView("session"), selShop, selSess, TODAY)}
+          {view === "debt" && renderDebtScreen()}
         </>
       )}
       {tab === "owner" && (
