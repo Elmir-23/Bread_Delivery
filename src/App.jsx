@@ -33,7 +33,7 @@ const c = {
   topbar: { display: "flex", alignItems: "center", gap: 10, padding: "14px 1rem 12px", borderBottom: "1px solid var(--border)" },
   backBtn: { background: "none", border: "1px solid var(--border2)", borderRadius: 8, width: 32, height: 32, cursor: "pointer", color: "var(--text)", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   dateRow: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 1rem", background: "var(--bg2)" },
-  dateBtn: { background: "none", border: "1px solid var(--border2)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: "var(--text)", fontSize: 16 },
+  dateBtn: (disabled) => ({ background: "none", border: "1px solid var(--border2)", borderRadius: 8, width: 30, height: 30, cursor: disabled ? "default" : "pointer", color: "var(--text)", fontSize: 16, opacity: disabled ? 0.3 : 1 }),
   pad: { padding: "1rem" },
   shopGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
   shopBtn: { padding: "18px 12px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg)", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left", position: "relative" },
@@ -79,17 +79,28 @@ const CSS = `
 export default function App() {
   const [db, setDB] = useState(() => loadDB());
   const [tab, setTab] = useState("delivery");
-  const [curDate, setCurDate] = useState(todayStr());
-  const [view, setView] = useState("shops"); // shops | session | entry
+
+  // Delivery state — always today, no date nav
+  const [view, setView] = useState("shops");
   const [selShop, setSelShop] = useState(null);
   const [selSess, setSelSess] = useState(null);
   const [entryVals, setEntryVals] = useState({});
+
+  // Owner state
   const [ownerUnlocked, setOwnerUnlocked] = useState(false);
   const [ownerTab, setOwnerTab] = useState("dashboard");
   const [pinBuf, setPinBuf] = useState("");
   const [pinErr, setPinErr] = useState("");
   const [dashPeriod, setDashPeriod] = useState("day");
   const [repPeriod, setRepPeriod] = useState("day");
+
+  // Owner — edit past dates
+  const [editDate, setEditDate] = useState(todayStr());
+  const [editView, setEditView] = useState("date-shops"); // date-shops | date-session | date-entry
+  const [editSelShop, setEditSelShop] = useState(null);
+  const [editSelSess, setEditSelSess] = useState(null);
+  const [editEntryVals, setEditEntryVals] = useState({});
+
   const [toast, setToast] = useState("");
   const [shopEdits, setShopEdits] = useState([]);
   const [newShopName, setNewShopName] = useState("");
@@ -103,9 +114,7 @@ export default function App() {
   const shopKura = (i) => db.shops[i]?.kura ?? db.prices.kura;
   const shopRail = (i) => db.shops[i]?.railway ?? db.prices.railway;
 
-  const isToday = curDate === todayStr();
-
-  // PIN
+  // PIN check
   useEffect(() => {
     if (pinBuf.length < 4) return;
     if (pinBuf === db.pin) {
@@ -125,26 +134,45 @@ export default function App() {
     setPinBuf(p => p + k);
   };
 
-  // Entry
-  const openEntry = (shopIdx, sessId) => {
-    setSelShop(shopIdx);
-    setSelSess(sessId);
-    const ex = (db.deliveries[curDate]?.[shopIdx]?.[sessId]) || {};
+  // ── DELIVERY (today only) ──
+  const TODAY = todayStr();
+
+  const openDeliveryEntry = (shopIdx, sessId) => {
+    setSelShop(shopIdx); setSelSess(sessId);
+    const ex = db.deliveries[TODAY]?.[shopIdx]?.[sessId] || {};
     setEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
     setView("entry");
   };
 
-  const adj = (g, t, d) => setEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
+  const adjDelivery = (g, t, d) => setEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
 
-  const saveEntry = () => {
-    const nd = { ...db, deliveries: { ...db.deliveries, [curDate]: { ...(db.deliveries[curDate] || {}), [selShop]: { ...(db.deliveries[curDate]?.[selShop] || {}) } } } };
+  const saveDeliveryEntry = () => {
+    const nd = { ...db, deliveries: { ...db.deliveries, [TODAY]: { ...(db.deliveries[TODAY] || {}), [selShop]: { ...(db.deliveries[TODAY]?.[selShop] || {}) } } } };
     const obj = { given: { ...entryVals.given } };
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
-    nd.deliveries[curDate][selShop][selSess] = obj;
+    nd.deliveries[TODAY][selShop][selSess] = obj;
     upd(nd); toast$("Saved ✓"); setTimeout(() => setView("session"), 300);
   };
 
-  // Stats
+  // ── OWNER EDIT (any date) ──
+  const openEditEntry = (shopIdx, sessId) => {
+    setEditSelShop(shopIdx); setEditSelSess(sessId);
+    const ex = db.deliveries[editDate]?.[shopIdx]?.[sessId] || {};
+    setEditEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
+    setEditView("date-entry");
+  };
+
+  const adjEdit = (g, t, d) => setEditEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
+
+  const saveEditEntry = () => {
+    const nd = { ...db, deliveries: { ...db.deliveries, [editDate]: { ...(db.deliveries[editDate] || {}), [editSelShop]: { ...(db.deliveries[editDate]?.[editSelShop] || {}) } } } };
+    const obj = { given: { ...editEntryVals.given } };
+    if (editSelSess === "morning") obj.leftover = { ...editEntryVals.leftover };
+    nd.deliveries[editDate][editSelShop][editSelSess] = obj;
+    upd(nd); toast$("Saved ✓"); setTimeout(() => setEditView("date-session"), 300);
+  };
+
+  // ── STATS ──
   const calcStats = (period) => {
     const t = todayStr(); let s = t;
     if (period === "week") s = addDays(t, -6);
@@ -170,7 +198,6 @@ export default function App() {
     return { totGK, totGR, totLK, totLR, totRev, ss };
   };
 
-  // CSV export — rows grouped by date
   const exportCSV = () => {
     const t = todayStr(); let s = t;
     if (repPeriod === "week") s = addDays(t, -6);
@@ -185,8 +212,7 @@ export default function App() {
           const d = sess[sv.id]; if (!d) return;
           const k = d.given?.kura || 0, r = d.given?.railway || 0; if (!k && !r) return;
           const lk = d.leftover?.kura || 0, lr = d.leftover?.railway || 0;
-          const rev = (k * shopKura(i) + r * shopRail(i)).toFixed(2);
-          csv += `${date},${shop},${sv.label},${k},${r},${shopKura(i).toFixed(2)},${shopRail(i).toFixed(2)},${rev},${lk},${lr}\n`;
+          csv += `${date},${shop},${sv.label},${k},${r},${shopKura(i).toFixed(2)},${shopRail(i).toFixed(2)},${(k*shopKura(i)+r*shopRail(i)).toFixed(2)},${lk},${lr}\n`;
         });
       });
     });
@@ -196,7 +222,6 @@ export default function App() {
     toast$("Downloading CSV…");
   };
 
-  // Owner: save shops
   const saveShops = () => {
     const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, railway: s.railStr !== "" ? parseFloat(s.railStr) : null }));
     upd({ ...db, shops }); toast$("Shops saved ✓");
@@ -214,52 +239,43 @@ export default function App() {
     upd({ ...db, shops });
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
   };
-  const savePrices = () => {
-    upd({ ...db, prices: { kura: parseFloat(settPrices.kura) || 0, railway: parseFloat(settPrices.railway) || 0 } });
-    toast$("Default prices saved ✓");
-  };
+  const savePrices = () => { upd({ ...db, prices: { kura: parseFloat(settPrices.kura) || 0, railway: parseFloat(settPrices.railway) || 0 } }); toast$("Prices saved ✓"); };
   const changePin = () => {
     if (pinOld !== db.pin) { toast$("Wrong current PIN"); return; }
     if (pinNew.length !== 4 || !/^\d+$/.test(pinNew)) { toast$("PIN must be 4 digits"); return; }
     upd({ ...db, pin: pinNew }); toast$("PIN changed ✓"); setPinOld(""); setPinNew("");
   };
 
-  const { totGK, totGR, totLK, totLR, totRev, ss } = calcStats(ownerUnlocked ? dashPeriod : "day");
+  const { totGK, totGR, totLK, totLR, totRev, ss } = calcStats(dashPeriod);
   const repStats = calcStats(repPeriod);
 
-  // Delivery screens
+  // ── RENDER: Delivery tab (today only, no date nav) ──
   const renderShopsScreen = () => (
-    <div>
-      <div style={c.dateRow}>
-        <button style={c.dateBtn} onClick={() => setCurDate(d => addDays(d, -1))}>‹</button>
-        <span style={{ fontSize: 13, fontWeight: 600 }}>{isToday ? "Today — " : ""}{fmtDateShort(curDate)}</span>
-        <button style={{ ...c.dateBtn, opacity: isToday ? 0.3 : 1 }} onClick={() => { if (!isToday) setCurDate(d => addDays(d, 1)); }}>›</button>
-      </div>
-      <div style={c.pad}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Select shop</div>
-        <div style={c.shopGrid}>
-          {db.shops.map((s, i) => {
-            const sd = db.deliveries[curDate]?.[i] || {};
-            const done = SESS.some(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
-            return (
-              <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
-                {s.name}
-                {done && <span style={{ ...c.tag, position: "absolute", top: 8, right: 8 }}>✓ Done</span>}
-              </button>
-            );
-          })}
-        </div>
+    <div style={c.pad}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Select shop</div>
+      <div style={c.shopGrid}>
+        {db.shops.map((s, i) => {
+          const sd = db.deliveries[TODAY]?.[i] || {};
+          const done = SESS.some(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
+          return (
+            <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
+              {s.name}
+              {done && <span style={{ ...c.tag, position: "absolute", top: 8, right: 8 }}>✓</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 
   const renderSessionScreen = () => {
-    const sd = db.deliveries[curDate]?.[selShop] || {};
+    const sd = db.deliveries[TODAY]?.[selShop] || {};
     return (
       <div>
         <div style={c.topbar}>
           <button style={c.backBtn} onClick={() => setView("shops")}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[selShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(curDate)}</div></div>
+          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[selShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
         </div>
         <div style={c.pad}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Choose session</div>
@@ -270,7 +286,7 @@ export default function App() {
               let sub = s.sub;
               if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.railway}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.railway > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.railway}`; }
               return (
-                <button key={s.id} style={c.sessBtn(has)} onClick={() => openEntry(selShop, s.id)}>
+                <button key={s.id} style={c.sessBtn(has)} onClick={() => openDeliveryEntry(selShop, s.id)}>
                   <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
                   <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
                 </button>
@@ -282,25 +298,25 @@ export default function App() {
     );
   };
 
-  const renderEntryScreen = () => {
-    const s = SESS.find(x => x.id === selSess);
-    const isMorn = selSess === "morning";
+  const renderEntryForm = (vals, adjFn, saveFn, backFn, shopIdx, sessId, date) => {
+    const s = SESS.find(x => x.id === sessId);
+    const isMorn = sessId === "morning";
     return (
       <div>
         <div style={c.topbar}>
-          <button style={c.backBtn} onClick={() => setView("session")}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[selShop]?.name} — {s?.label}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(curDate)}</div></div>
+          <button style={c.backBtn} onClick={backFn}>‹</button>
+          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[shopIdx]?.name} — {s?.label}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(date)}</div></div>
         </div>
         <div style={c.pad}>
           <div style={c.block}>
             <div style={c.blockTitle}>Given to shop</div>
-            {[["kura", "Kura"], ["railway", "Railway"]].map(([t, lbl]) => (
+            {[["kura","Kura"],["railway","Railway"]].map(([t,lbl]) => (
               <div key={t} style={{ ...c.breadRow, marginBottom: t === "railway" ? 0 : 10 }}>
                 <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
                 <div style={c.counter}>
-                  <button style={c.cntBtn} onClick={() => adj("given", t, -1)}>−</button>
-                  <span style={{ fontSize: 18, fontWeight: 600, minWidth: 36, textAlign: "center" }}>{entryVals.given?.[t] || 0}</span>
-                  <button style={c.cntBtn} onClick={() => adj("given", t, 1)}>+</button>
+                  <button style={c.cntBtn} onClick={() => adjFn("given", t, -1)}>−</button>
+                  <span style={{ fontSize: 18, fontWeight: 600, minWidth: 36, textAlign: "center" }}>{vals.given?.[t] || 0}</span>
+                  <button style={c.cntBtn} onClick={() => adjFn("given", t, 1)}>+</button>
                 </div>
               </div>
             ))}
@@ -308,25 +324,84 @@ export default function App() {
           {isMorn && (
             <div style={c.block}>
               <div style={c.blockTitle}>Leftover collected (taken back)</div>
-              {[["kura", "Kura"], ["railway", "Railway"]].map(([t, lbl]) => (
+              {[["kura","Kura"],["railway","Railway"]].map(([t,lbl]) => (
                 <div key={t} style={{ ...c.breadRow, marginBottom: t === "railway" ? 0 : 10 }}>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
                   <div style={c.counter}>
-                    <button style={c.cntBtn} onClick={() => adj("leftover", t, -1)}>−</button>
-                    <span style={{ fontSize: 18, fontWeight: 600, minWidth: 36, textAlign: "center" }}>{entryVals.leftover?.[t] || 0}</span>
-                    <button style={c.cntBtn} onClick={() => adj("leftover", t, 1)}>+</button>
+                    <button style={c.cntBtn} onClick={() => adjFn("leftover", t, -1)}>−</button>
+                    <span style={{ fontSize: 18, fontWeight: 600, minWidth: 36, textAlign: "center" }}>{vals.leftover?.[t] || 0}</span>
+                    <button style={c.cntBtn} onClick={() => adjFn("leftover", t, 1)}>+</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-          <button style={c.primaryBtn} onClick={saveEntry}>Save</button>
+          <button style={c.primaryBtn} onClick={saveFn}>Save</button>
         </div>
       </div>
     );
   };
 
-  // Owner screens
+  // ── RENDER: Owner — edit past dates ──
+  const renderEditSection = () => {
+    const isEditToday = editDate === todayStr();
+    if (editView === "date-shops") {
+      const sd = db.deliveries[editDate] || {};
+      return (
+        <div style={c.pad}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Edit deliveries by date</div>
+          <div style={c.dateRow}>
+            <button style={c.dateBtn(false)} onClick={() => setEditDate(d => addDays(d, -1))}>‹</button>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{isEditToday ? "Today — " : ""}{fmtDateShort(editDate)}</span>
+            <button style={c.dateBtn(isEditToday)} onClick={() => { if (!isEditToday) setEditDate(d => addDays(d, 1)); }}>›</button>
+          </div>
+          <div style={{ ...c.shopGrid, marginTop: 12 }}>
+            {db.shops.map((s, i) => {
+              const done = SESS.some(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.railway));
+              return (
+                <button key={i} style={c.shopBtn} onClick={() => { setEditSelShop(i); setEditView("date-session"); }}>
+                  {s.name}
+                  {done && <span style={{ ...c.tag, position: "absolute", top: 8, right: 8 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+    if (editView === "date-session") {
+      const sd = db.deliveries[editDate]?.[editSelShop] || {};
+      return (
+        <div>
+          <div style={c.topbar}>
+            <button style={c.backBtn} onClick={() => setEditView("date-shops")}>‹</button>
+            <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[editSelShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(editDate)}</div></div>
+          </div>
+          <div style={c.pad}>
+            <div style={c.sessList}>
+              {SESS.map(s => {
+                const d = sd[s.id] || {};
+                const has = d.given && (d.given.kura > 0 || d.given.railway > 0);
+                let sub = s.sub;
+                if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.railway}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.railway > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.railway}`; }
+                return (
+                  <button key={s.id} style={c.sessBtn(has)} onClick={() => openEditEntry(editSelShop, s.id)}>
+                    <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
+                    <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (editView === "date-entry") {
+      return renderEntryForm(editEntryVals, adjEdit, saveEditEntry, () => setEditView("date-session"), editSelShop, editSelSess, editDate);
+    }
+  };
+
+  // ── RENDER: Dashboard ──
   const renderDashboard = () => {
     const revs = db.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
     const maxR = revs.length ? revs[0].rev : 1;
@@ -336,7 +411,7 @@ export default function App() {
           {[["day","Today"],["week","7 days"],["month","30 days"]].map(([p,l]) => <button key={p} style={c.periodBtn(dashPeriod===p)} onClick={() => setDashPeriod(p)}>{l}</button>)}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
-          {[["Revenue", totRev.toFixed(2)+" ₼"],["Total given",totGK+totGR],["Kura given",totGK],["Railway given",totGR],["Leftovers back",totLK+totLR],["Net delivered",(totGK+totGR)-(totLK+totLR)]].map(([l,v]) => (
+          {[["Revenue",totRev.toFixed(2)+" ₼"],["Total given",totGK+totGR],["Kura given",totGK],["Railway given",totGR],["Leftovers back",totLK+totLR],["Net delivered",(totGK+totGR)-(totLK+totLR)]].map(([l,v]) => (
             <div key={l} style={c.metric}><div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>{l}</div><div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div></div>
           ))}
         </div>
@@ -352,9 +427,9 @@ export default function App() {
     );
   };
 
+  // ── RENDER: Reports ──
   const renderReports = () => {
     const { ss: rss } = repStats;
-    // Build date-level summary for the table
     const t = todayStr(); let s = t;
     if (repPeriod === "week") s = addDays(t, -6);
     if (repPeriod === "month") s = addDays(t, -29);
@@ -391,12 +466,7 @@ export default function App() {
         <div style={c.listCard}>
           {db.shops.filter((_, i) => rss[i] && (rss[i].kura || rss[i].railway)).length ? db.shops.map((shop, i) => {
             const v = rss[i]; if (!v || (!v.kura && !v.railway)) return null;
-            return (
-              <div key={i} style={c.listRow(i === db.shops.length - 1)}>
-                <div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.railway} · Left: {v.leftK + v.leftR}</div></div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div>
-              </div>
-            );
+            return (<div key={i} style={c.listRow(i === db.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.railway} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>);
           }) : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
         </div>
         <button style={c.outlineBtn} onClick={exportCSV}>⬇ Export to CSV / Excel</button>
@@ -404,6 +474,7 @@ export default function App() {
     );
   };
 
+  // ── RENDER: Shops manager ──
   const renderShopsMgr = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10 }}>Leave price blank to use default.</div>
@@ -428,16 +499,17 @@ export default function App() {
     </div>
   );
 
+  // ── RENDER: Settings ──
   const renderSettings = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Default bread prices</div>
       <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10 }}>Applied to shops without a custom price.</div>
       <div style={c.listCard}>
-        {[["kura", "Kura", "kura"], ["railway", "Railway", "railway"]].map(([k, lbl, field], i) => (
-          <div key={k} style={c.settRow(i === 1)}>
+        {[["kura","Kura"],["railway","Railway"]].map(([k,lbl],i) => (
+          <div key={k} style={c.settRow(i===1)}>
             <div><div style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</div><div style={{ fontSize: 11, color: "var(--text2)" }}>default per loaf</div></div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <input type="number" min={0} step={0.01} value={settPrices[field]} onChange={e => setSettPrices(p => ({ ...p, [field]: e.target.value }))} style={{ width: 68, padding: "5px 8px", textAlign: "right", fontSize: 14, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)" }} />
+              <input type="number" min={0} step={0.01} value={settPrices[k]} onChange={e => setSettPrices(p => ({ ...p, [k]: e.target.value }))} style={{ width: 68, padding: "5px 8px", textAlign: "right", fontSize: 14, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)" }} />
               <span style={{ fontSize: 13, color: "var(--text2)" }}>₼</span>
             </div>
           </div>
@@ -446,8 +518,8 @@ export default function App() {
       <button style={{ ...c.primaryBtn, marginBottom: "1.25rem" }} onClick={savePrices}>Save default prices</button>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Change PIN</div>
       <div style={c.listCard}>
-        {[["Current PIN", pinOld, setPinOld], ["New PIN", pinNew, setPinNew]].map(([lbl, val, setter], i) => (
-          <div key={lbl} style={c.settRow(i === 1)}>
+        {[["Current PIN", pinOld, setPinOld],["New PIN", pinNew, setPinNew]].map(([lbl,val,setter],i) => (
+          <div key={lbl} style={c.settRow(i===1)}>
             <div style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</div>
             <input type="password" maxLength={4} value={val} onChange={e => setter(e.target.value)} style={{ width: 80, padding: "5px 8px", textAlign: "right", fontSize: 14, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)" }} />
           </div>
@@ -457,23 +529,7 @@ export default function App() {
     </div>
   );
 
-  const renderPinScreen = () => (
-    <div style={{ minHeight: 320, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "2rem" }}>
-      <div style={{ fontSize: 18, fontWeight: 500 }}>Owner access</div>
-      <div style={{ fontSize: 13, color: "var(--text2)" }}>Enter your PIN</div>
-      <div style={{ display: "flex", gap: 12, margin: "4px 0" }}>
-        {[0,1,2,3].map(i => <div key={i} style={c.pinDot(i < pinBuf.length)}></div>)}
-      </div>
-      <div style={{ color: "var(--danger, #dc2626)", fontSize: 13, minHeight: 18 }}>{pinErr}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, width: 220 }}>
-        {["1","2","3","4","5","6","7","8","9","clr","0","del"].map(k => (
-          <button key={k} style={c.pinKey} onClick={() => pinKey(k)}>{k === "clr" ? "CLR" : k === "del" ? "⌫" : k}</button>
-        ))}
-      </div>
-    </div>
-  );
-
-  const ownerTabs = [["dashboard","Dashboard"],["reports","Reports"],["shops-mgr","Shops"],["settings","Settings"]];
+  const ownerTabs = [["dashboard","Dashboard"],["reports","Reports"],["edit","Edit dates"],["shops-mgr","Shops"],["settings","Settings"]];
 
   return (
     <div style={c.wrap}>
@@ -484,7 +540,7 @@ export default function App() {
 
       <div style={c.nav}>
         {[["delivery","🚚","Delivery"],["owner","🔐","Owner"]].map(([key,icon,lbl]) => (
-          <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key === "delivery") { setView("shops"); } }}>
+          <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") setView("shops"); }}>
             <span style={{ fontSize: 18 }}>{icon}</span>{lbl}
           </button>
         ))}
@@ -494,22 +550,35 @@ export default function App() {
         <>
           {view === "shops" && renderShopsScreen()}
           {view === "session" && renderSessionScreen()}
-          {view === "entry" && renderEntryScreen()}
+          {view === "entry" && renderEntryForm(entryVals, adjDelivery, saveDeliveryEntry, () => setView("session"), selShop, selSess, TODAY)}
         </>
       )}
 
       {tab === "owner" && (
         <>
-          {!ownerUnlocked && renderPinScreen()}
+          {!ownerUnlocked && (
+            <div style={{ minHeight: 320, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "2rem" }}>
+              <div style={{ fontSize: 18, fontWeight: 500 }}>Owner access</div>
+              <div style={{ fontSize: 13, color: "var(--text2)" }}>Enter your PIN</div>
+              <div style={{ display: "flex", gap: 12, margin: "4px 0" }}>{[0,1,2,3].map(i => <div key={i} style={c.pinDot(i < pinBuf.length)}></div>)}</div>
+              <div style={{ color: "#dc2626", fontSize: 13, minHeight: 18 }}>{pinErr}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, width: 220 }}>
+                {["1","2","3","4","5","6","7","8","9","clr","0","del"].map(k => (
+                  <button key={k} style={c.pinKey} onClick={() => pinKey(k)}>{k==="clr"?"CLR":k==="del"?"⌫":k}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {ownerUnlocked && (
             <div>
               <div style={{ padding: "1rem 1rem 0" }}>
-                <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
-                  {ownerTabs.map(([k,l]) => <button key={k} style={c.ownerNavBtn(ownerTab===k)} onClick={() => setOwnerTab(k)}>{l}</button>)}
+                <div style={{ display: "flex", gap: 5, marginBottom: "1rem", flexWrap: "wrap" }}>
+                  {ownerTabs.map(([k,l]) => <button key={k} style={{ ...c.ownerNavBtn(ownerTab===k), flex: "none", padding: "7px 10px" }} onClick={() => { setOwnerTab(k); if (k==="edit") setEditView("date-shops"); }}>{l}</button>)}
                 </div>
               </div>
               {ownerTab === "dashboard" && renderDashboard()}
               {ownerTab === "reports" && renderReports()}
+              {ownerTab === "edit" && renderEditSection()}
               {ownerTab === "shops-mgr" && renderShopsMgr()}
               {ownerTab === "settings" && renderSettings()}
               <div style={{ padding: "0 1rem 1.5rem" }}>
