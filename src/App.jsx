@@ -14,11 +14,11 @@ const SESS_WITH_DEBT = [
 const DEF_SHOPS = ["Shahin","Murad","Alasgar","50_Gapik","Fuad","Elbrus","Ramal","Suraddin","Khila","Kolya","Nur-S"];
 const DEFAULT_DB = {
   pin: "1234",
-  prices: { kura: 1.5, railway: 2.0 },
+  prices: { kura: 0.55, damiryolu: 0.65 },
   deliveries: {},
   debts: {},
   debtPayments: {},
-  shops: DEF_SHOPS.map(n => ({ name: n, kura: null, railway: null }))
+  shops: DEF_SHOPS.map(n => ({ name: n, kura: null, damiryolu: null }))
 };
 
 function todayStr() { return new Date().toISOString().split("T")[0]; }
@@ -114,7 +114,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [shopEdits, setShopEdits] = useState([]);
   const [newShopName, setNewShopName] = useState("");
-  const [settPrices, setSettPrices] = useState({ kura: "", railway: "" });
+  const [settPrices, setSettPrices] = useState({ kura: "", damiryolu: "" });
   const [pinOld, setPinOld] = useState("");
   const [pinNew, setPinNew] = useState("");
 
@@ -139,15 +139,15 @@ export default function App() {
 
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
-  const shopRail = (i) => db_data?.shops[i]?.railway ?? db_data?.prices?.railway ?? 2.0;
+  const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
   const TODAY = todayStr();
 
   useEffect(() => {
     if (pinBuf.length < 4) return;
     if (pinBuf === db_data?.pin) {
       setOwnerUnlocked(true); setPinBuf(""); setPinErr("");
-      setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
-      setSettPrices({ kura: String(db_data.prices.kura), railway: String(db_data.prices.railway) });
+      setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
+      setSettPrices({ kura: String(db_data.prices.kura), damiryolu: String(db_data.prices.damiryolu) });
     } else {
       setPinErr("Wrong PIN. Try again.");
       setTimeout(() => { setPinBuf(""); setPinErr(""); }, 900);
@@ -164,7 +164,7 @@ export default function App() {
   const openDeliveryEntry = (shopIdx, sessId) => {
     setSelShop(shopIdx); setSelSess(sessId);
     const ex = db_data?.deliveries?.[TODAY]?.[shopIdx]?.[sessId] || {};
-    setEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
+    setEntryVals({ given: { kura: ex.given?.kura || 0, damiryolu: ex.given?.damiryolu || 0 }, leftover: { kura: ex.leftover?.kura || 0, damiryolu: ex.leftover?.damiryolu || 0 } });
     setView("entry");
   };
 
@@ -176,8 +176,8 @@ export default function App() {
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
 
     const prev = nd.deliveries[TODAY][selShop][selSess];
-    const prevVal = prev ? (prev.given?.kura || 0) * shopKura(selShop) + (prev.given?.railway || 0) * shopRail(selShop) : 0;
-    const newVal = (entryVals.given?.kura || 0) * shopKura(selShop) + (entryVals.given?.railway || 0) * shopRail(selShop);
+    const prevVal = prev ? (prev.given?.kura || 0) * shopKura(selShop) + (prev.given?.damiryolu || 0) * shopRail(selShop) : 0;
+    const newVal = (entryVals.given?.kura || 0) * shopKura(selShop) + (entryVals.given?.damiryolu || 0) * shopRail(selShop);
     nd.deliveries[TODAY][selShop][selSess] = obj;
     const debts = { ...(nd.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
@@ -208,7 +208,7 @@ export default function App() {
   const openEditEntry = (shopIdx, sessId) => {
     setEditSelShop(shopIdx); setEditSelSess(sessId);
     const ex = db_data?.deliveries?.[editDate]?.[shopIdx]?.[sessId] || {};
-    setEditEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
+    setEditEntryVals({ given: { kura: ex.given?.kura || 0, damiryolu: ex.given?.damiryolu || 0 }, leftover: { kura: ex.leftover?.kura || 0, damiryolu: ex.leftover?.damiryolu || 0 } });
     setEditView("date-entry");
   };
 
@@ -230,7 +230,7 @@ export default function App() {
     if (period === "month") s = addDays(t, -29);
     let totGK = 0, totGR = 0, totLK = 0, totLR = 0, totRev = 0, totCollected = 0;
     const ss = {};
-    db_data.shops.forEach((_, i) => ss[i] = { kura: 0, railway: 0, leftK: 0, leftR: 0, rev: 0 });
+    db_data.shops.forEach((_, i) => ss[i] = { kura: 0, damiryolu: 0, leftK: 0, leftR: 0, rev: 0 });
 
     // Delivery stats
     Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
@@ -239,13 +239,13 @@ export default function App() {
         const i = parseInt(idx);
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
-          const k = d.given?.kura || 0, r = d.given?.railway || 0;
+          const k = d.given?.kura || 0, r = d.given?.damiryolu || 0;
           const rev = k * shopKura(i) + r * shopRail(i);
-          if (!ss[i]) ss[i] = { kura: 0, railway: 0, leftK: 0, leftR: 0, rev: 0 };
-          ss[i].kura += k; ss[i].railway += r; ss[i].rev += rev;
+          if (!ss[i]) ss[i] = { kura: 0, damiryolu: 0, leftK: 0, leftR: 0, rev: 0 };
+          ss[i].kura += k; ss[i].damiryolu += r; ss[i].rev += rev;
           totGK += k; totGR += r; totRev += rev;
           if (sv.id === "morning") {
-            const lk = d.leftover?.kura || 0, lr = d.leftover?.railway || 0;
+            const lk = d.leftover?.kura || 0, lr = d.leftover?.damiryolu || 0;
             ss[i].leftK += lk; ss[i].leftR += lr; totLK += lk; totLR += lr;
           }
         });
@@ -279,7 +279,7 @@ export default function App() {
         const i = parseInt(idx);
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
-          const k = d.given?.kura || 0, r = d.given?.railway || 0;
+          const k = d.given?.kura || 0, r = d.given?.damiryolu || 0;
           runningDebt[i] -= k * shopKura(i) + r * shopRail(i);
         });
       });
@@ -294,7 +294,7 @@ export default function App() {
     });
 
     // Now runningDebt[i] = balance at start of period. Build CSV row by row.
-    let csv = "Date,Shop,Session,Kura Given,Railway Given,Kura Price,Railway Price,Revenue,Leftover Kura,Leftover Railway,Debt,Collected Money\n";
+    let csv = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
 
     // Group deliveries by date then shop for ordering
     const sortedDates = Object.keys(db_data.deliveries || {}).filter(d => d >= s && d <= t).sort();
@@ -311,15 +311,15 @@ export default function App() {
         // Find which sessions have data, to know which is the last
         const sessWithData = SESS.filter(sv => {
           const d = sess[sv.id];
-          return d && (d.given?.kura > 0 || d.given?.railway > 0);
+          return d && (d.given?.kura > 0 || d.given?.damiryolu > 0);
         });
         const lastSessId = sessWithData.length ? sessWithData[sessWithData.length - 1].id : null;
         const collectedToday = dayPayments[i] || dayPayments[String(i)] || 0;
 
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
-          const k = d.given?.kura || 0, r = d.given?.railway || 0; if (!k && !r) return;
-          const lk = d.leftover?.kura || 0, lr = d.leftover?.railway || 0;
+          const k = d.given?.kura || 0, r = d.given?.damiryolu || 0; if (!k && !r) return;
+          const lk = d.leftover?.kura || 0, lr = d.leftover?.damiryolu || 0;
           const rev = k * shopKura(i) + r * shopRail(i);
 
           // Advance running debt: add this delivery's revenue
@@ -346,23 +346,23 @@ export default function App() {
   };
 
   const saveShops = async () => {
-    const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, railway: s.railStr !== "" ? parseFloat(s.railStr) : null }));
+    const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, damiryolu: s.railStr !== "" ? parseFloat(s.railStr) : null }));
     await upd({ ...db_data, shops }); toast$("Shops saved ✓");
   };
   const addShop = () => {
     if (!newShopName.trim()) return;
-    const shops = [...db_data.shops, { name: newShopName.trim(), kura: null, railway: null }];
-    setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
+    const shops = [...db_data.shops, { name: newShopName.trim(), kura: null, damiryolu: null }];
+    setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
     setNewShopName("");
     upd({ ...db_data, shops });
   };
   const removeShop = (i) => {
     if (db_data.shops.length <= 1) return;
     const shops = db_data.shops.filter((_, x) => x !== i);
-    setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
+    setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
     upd({ ...db_data, shops });
   };
-  const savePrices = async () => { await upd({ ...db_data, prices: { kura: parseFloat(settPrices.kura) || 0, railway: parseFloat(settPrices.railway) || 0 } }); toast$("Prices saved ✓"); };
+  const savePrices = async () => { await upd({ ...db_data, prices: { kura: parseFloat(settPrices.kura) || 0, damiryolu: parseFloat(settPrices.damiryolu) || 0 } }); toast$("Prices saved ✓"); };
   const changePin = async () => {
     if (pinOld !== db_data.pin) { toast$("Wrong current PIN"); return; }
     if (pinNew.length !== 4 || !/^\d+$/.test(pinNew)) { toast$("PIN must be 4 digits"); return; }
@@ -385,7 +385,7 @@ export default function App() {
       <div style={c.shopGrid}>
         {db_data.shops.map((s, i) => {
           const sd = db_data.deliveries?.[TODAY]?.[i] || {};
-          const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
+          const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.damiryolu));
           const debt = db_data.debts?.[i] || 0;
           return (
             <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
@@ -433,9 +433,9 @@ export default function App() {
                 );
               }
               const d = sd[s.id] || {};
-              const has = d.given && (d.given.kura > 0 || d.given.railway > 0);
+              const has = d.given && (d.given.kura > 0 || d.given.damiryolu > 0);
               let sub = s.sub;
-              if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.railway}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.railway > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.railway}`; }
+              if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.damiryolu}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.damiryolu > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.damiryolu}`; }
               return (
                 <button key={s.id} style={c.sessBtn(has)} onClick={() => openDeliveryEntry(selShop, s.id)}>
                   <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
@@ -504,8 +504,8 @@ export default function App() {
         <div style={c.pad}>
           <div style={c.block}>
             <div style={c.blockTitle}>Given to shop</div>
-            {[["kura","Kura"],["railway","Railway"]].map(([t,lbl]) => (
-              <div key={t} style={{ ...c.breadRow, marginBottom: t === "railway" ? 0 : 10 }}>
+            {[["kura","Kura"],["damiryolu","Damiryolu"]].map(([t,lbl]) => (
+              <div key={t} style={{ ...c.breadRow, marginBottom: t === "damiryolu" ? 0 : 10 }}>
                 <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
                 <div style={c.counter}>
                   <button style={c.cntBtn} onClick={() => adjFn("given", t, -1)}>−</button>
@@ -518,8 +518,8 @@ export default function App() {
           {isMorn && (
             <div style={c.block}>
               <div style={c.blockTitle}>Leftover collected (taken back)</div>
-              {[["kura","Kura"],["railway","Railway"]].map(([t,lbl]) => (
-                <div key={t} style={{ ...c.breadRow, marginBottom: t === "railway" ? 0 : 10 }}>
+              {[["kura","Kura"],["damiryolu","Damiryolu"]].map(([t,lbl]) => (
+                <div key={t} style={{ ...c.breadRow, marginBottom: t === "damiryolu" ? 0 : 10 }}>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
                   <div style={c.counter}>
                     <button style={c.cntBtn} onClick={() => adjFn("leftover", t, -1)}>−</button>
@@ -550,7 +550,7 @@ export default function App() {
           </div>
           <div style={{ ...c.shopGrid, marginTop: 12 }}>
             {db_data.shops.map((s, i) => {
-              const done = SESS.every(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.railway));
+              const done = SESS.every(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.damiryolu));
               return (
                 <button key={i} style={c.shopBtn} onClick={() => { setEditSelShop(i); setEditView("date-session"); }}>
                   {s.name}
@@ -574,9 +574,9 @@ export default function App() {
             <div style={c.sessList}>
               {SESS.map(s => {
                 const d = sd[s.id] || {};
-                const has = d.given && (d.given.kura > 0 || d.given.railway > 0);
+                const has = d.given && (d.given.kura > 0 || d.given.damiryolu > 0);
                 let sub = s.sub;
-                if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.railway}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.railway > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.railway}`; }
+                if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.damiryolu}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.damiryolu > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.damiryolu}`; }
                 return (
                   <button key={s.id} style={c.sessBtn(has)} onClick={() => openEditEntry(editSelShop, s.id)}>
                     <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
@@ -615,7 +615,7 @@ export default function App() {
           <div style={{ fontSize: 24, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
         </div>
 
-        {/* Total Given with Kura / Railway sub-rows */}
+        {/* Total Given with Kura / Damiryolu sub-rows */}
         <div style={{ ...c.metric, marginBottom: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 11, color: "var(--text2)" }}>Total given</div>
@@ -626,7 +626,7 @@ export default function App() {
             <span style={{ fontSize: 13, fontWeight: 500 }}>{totGK}</span>
           </div>
           <div className="sub-metric">
-            <span style={{ fontSize: 12, color: "var(--text2)" }}>Railway</span>
+            <span style={{ fontSize: 12, color: "var(--text2)" }}>Damiryolu</span>
             <span style={{ fontSize: 13, fontWeight: 500 }}>{totGR}</span>
           </div>
         </div>
@@ -696,9 +696,9 @@ export default function App() {
         const i = parseInt(idx);
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
-          const k = d.given?.kura || 0, r = d.given?.railway || 0;
+          const k = d.given?.kura || 0, r = d.given?.damiryolu || 0;
           dGK += k; dGR += r; dRev += k * shopKura(i) + r * shopRail(i);
-          if (sv.id === "morning") { dLK += d.leftover?.kura || 0; dLR += d.leftover?.railway || 0; }
+          if (sv.id === "morning") { dLK += d.leftover?.kura || 0; dLR += d.leftover?.damiryolu || 0; }
         });
       });
       if (dGK || dGR) dateRows.push({ date, dGK, dGR, dLK, dLR, dRev });
@@ -719,8 +719,8 @@ export default function App() {
         </div>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>By shop</div>
         <div style={c.listCard}>
-          {db_data.shops.filter((_, i) => rss[i] && (rss[i].kura || rss[i].railway)).length
-            ? db_data.shops.map((shop, i) => { const v = rss[i]; if (!v || (!v.kura && !v.railway)) return null; return (<div key={i} style={c.listRow(i === db_data.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.railway} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>); })
+          {db_data.shops.filter((_, i) => rss[i] && (rss[i].kura || rss[i].damiryolu)).length
+            ? db_data.shops.map((shop, i) => { const v = rss[i]; if (!v || (!v.kura && !v.damiryolu)) return null; return (<div key={i} style={c.listRow(i === db_data.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.damiryolu} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>); })
             : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
         </div>
         <button style={c.outlineBtn} onClick={exportCSV}>⬇ Export to CSV / Excel</button>
@@ -738,7 +738,7 @@ export default function App() {
             <div key={i} className="shop-edit-grid">
               <input type="text" value={s.name} onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
               <input type="number" value={s.kuraStr} placeholder={db_data.prices.kura.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, kuraStr: e.target.value } : x))} />
-              <input type="number" value={s.railStr} placeholder={db_data.prices.railway.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, railStr: e.target.value } : x))} />
+              <input type="number" value={s.railStr} placeholder={db_data.prices.damiryolu.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, railStr: e.target.value } : x))} />
               <button onClick={() => removeShop(i)}>🗑</button>
             </div>
           ))}
@@ -757,7 +757,7 @@ export default function App() {
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Default bread prices</div>
       <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10 }}>Applied to shops without a custom price.</div>
       <div style={c.listCard}>
-        {[["kura","Kura"],["railway","Railway"]].map(([k,lbl],i) => (
+        {[["kura","Kura"],["damiryolu","Damiryolu"]].map(([k,lbl],i) => (
           <div key={k} style={c.settRow(i===1)}>
             <div><div style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</div><div style={{ fontSize: 11, color: "var(--text2)" }}>default per loaf</div></div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
