@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./firebase";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
 
 const SESS = [
   { id: "morning", label: "Morning", icon: "🌅", sub: "Given + collect leftovers" },
@@ -117,6 +117,7 @@ export default function App() {
   const [settPrices, setSettPrices] = useState({ kura: "", damiryolu: "" });
   const [pinOld, setPinOld] = useState("");
   const [pinNew, setPinNew] = useState("");
+  const [archives, setArchives] = useState([]);
 
   useEffect(() => {
     const ref = doc(db, "app", "data");
@@ -142,33 +143,90 @@ export default function App() {
   const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
   const TODAY = todayStr();
 
-  const triggerArchiveIfMonday = async (data) => {
-    const today = new Date();
-    const isMonday = today.getDay() === 1;
-    if (!isMonday) return;
-    const lastArchive = localStorage.getItem("lastArchiveDate");
-    const todayKey = todayStr();
-    if (lastArchive === todayKey) return;
-    try {
-      const res = await fetch("/api/archive", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deliveries: data.deliveries || {},
-          debtPayments: data.debtPayments || {},
-          debts: data.debts || {},
-          shops: data.shops || [],
-          prices: data.prices || {},
-        }),
+  const getThisWeekMonday = () => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = (day === 0) ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  };
+
+  const buildCSV = (data) => {
+    const { deliveries, debtPayments, debts, shops, prices } = data;
+    const shopKuraP = (i) => shops[i]?.kura ?? prices?.kura ?? 0.55;
+    const shopDamiP = (i) => shops[i]?.damiryolu ?? prices?.damiryolu ?? 0.65;
+    const SESS_IDS = ["morning","afternoon","evening"];
+    const SESS_LABELS = { morning:"Morning", afternoon:"Afternoon", evening:"Evening" };
+    const allDates = Object.keys(deliveries || {}).sort();
+    if (!allDates.length) return null;
+    const runningDebt = {};
+    shops.forEach((_, i) => { runningDebt[i] = debts?.[i] || 0; });
+    Object.entries(deliveries || {}).forEach(([, shopData]) => {
+      Object.entries(shopData).forEach(([idx, sess]) => {
+        const i = parseInt(idx);
+        SESS_IDS.forEach(sv => {
+          const d = sess[sv]; if (!d) return;
+          runningDebt[i] -= (d.given?.kura||0)*shopKuraP(i) + (d.given?.damiryolu||0)*shopDamiP(i);
+        });
       });
-      const json = await res.json();
-      if (json.success) {
-        localStorage.setItem("lastArchiveDate", todayKey);
-        toast$("📦 Weekly archive saved to Drive ✓");
-      }
-    } catch (e) {
-      console.error("Archive failed:", e);
-    }
+    });
+    Object.entries(debtPayments || {}).forEach(([, shopData]) => {
+      Object.entries(shopData).forEach(([idx, amount]) => { runningDebt[parseInt(idx)] += amount; });
+    });
+    let csv = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
+    let rowCount = 0;
+    allDates.forEach(date => {
+      const shopData = deliveries[date];
+      const dayPayments = debtPayments?.[date] || {};
+      Object.entries(shopData).forEach(([idx, sess]) => {
+        const i = parseInt(idx);
+        const shopName = shops[i]?.name || ("Shop " + idx);
+        const sessWithData = SESS_IDS.filter(sv => { const d = sess[sv]; return d && (d.given?.kura>0||d.given?.damiryolu>0); });
+        const lastSessId = sessWithData.length ? sessWithData[sessWithData.length-1] : null;
+        const collectedToday = dayPayments[i] || dayPayments[String(i)] || 0;
+        SESS_IDS.forEach(sv => {
+          const d = sess[sv]; if (!d) return;
+          const k = d.given?.kura||0, r = d.given?.damiryolu||0; if (!k && !r) return;
+          const lk = d.leftover?.kura||0, lr = d.leftover?.damiryolu||0;
+          const rev = k*shopKuraP(i) + r*shopDamiP(i);
+          runningDebt[i] += rev;
+          let collected = 0;
+          if (sv === lastSessId && collectedToday > 0) { collected = collectedToday; runningDebt[i] -= collected; }
+          csv += `${date},${shopName},${SESS_LABELS[sv]},${k},${r},${shopKuraP(i).toFixed(2)},${shopDamiP(i).toFixed(2)},${rev.toFixed(2)},${lk},${lr},${runningDebt[i].toFixed(2)},${collected>0?collected.toFixed(2):""}\n`;
+          rowCount++;
+        });
+      });
+    });
+    return { csv, rowCount, startDate: allDates[0], endDate: allDates[allDates.length-1] };
+  };
+
+  const loadArchives = async () => {
+    try {
+      const snap = await getDocs(collection(db, "archives"));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.weekMonday.localeCompare(a.weekMonday));
+      setArchives(list);
+    } catch(e) { console.error("Load archives failed:", e); }
+  };
+
+  const triggerArchiveIfNeeded = async (data) => {
+    const thisMonday = getThisWeekMonday();
+    try {
+      const snap = await getDocs(collection(db, "archives"));
+      const alreadyDone = snap.docs.some(d => d.data().weekMonday === thisMonday);
+      if (alreadyDone) return;
+      const built = buildCSV(data);
+      if (!built) return;
+      const { csv, rowCount, startDate, endDate } = built;
+      await addDoc(collection(db, "archives"), {
+        weekMonday: thisMonday,
+        archivedOn: todayStr(),
+        rowCount,
+        startDate,
+        endDate,
+        csv,
+      });
+      toast$("📦 Weekly archive saved ✓");
+    } catch(e) { console.error("Archive failed:", e); }
   };
 
   useEffect(() => {
@@ -177,7 +235,7 @@ export default function App() {
       setOwnerUnlocked(true); setPinBuf(""); setPinErr("");
       setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
       setSettPrices({ kura: String(db_data.prices.kura), damiryolu: String(db_data.prices.damiryolu) });
-      triggerArchiveIfMonday(db_data);
+      triggerArchiveIfNeeded(db_data); loadArchives();
     } else {
       setPinErr("Wrong PIN. Try again.");
       setTimeout(() => { setPinBuf(""); setPinErr(""); }, 900);
@@ -811,7 +869,47 @@ export default function App() {
     </div>
   );
 
-  const ownerTabs = [["dashboard","Dashboard"],["reports","Reports"],["edit","Edit dates"],["shops-mgr","Shops"],["settings","Settings"]];
+  const renderArchives = () => {
+    const downloadArchive = (arc) => {
+      const blob = new Blob([arc.csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `bread-archive-week-${arc.weekMonday}.csv`;
+      a.click();
+      toast$("Downloading CSV…");
+    };
+    return (
+      <div style={c.pad}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Saved archives</div>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 12 }}>Auto-saved every week when you log in.</div>
+        {archives.length === 0 ? (
+          <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>
+            No archives yet. Come back next week!
+          </div>
+        ) : (
+          <div style={c.listCard}>
+            {archives.map((arc, i) => (
+              <div key={arc.id} style={{ ...c.listRow(i === archives.length - 1), gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>Week of {fmtDateShort(arc.weekMonday)}</div>
+                  <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
+                    Archived {fmtDateShort(arc.archivedOn)} · {arc.rowCount} rows
+                  </div>
+                </div>
+                <button
+                  onClick={() => downloadArchive(arc)}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>
+                  ⬇ CSV
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const ownerTabs = [["dashboard","Dashboard"],["reports","Reports"],["edit","Edit dates"],["shops-mgr","Shops"],["archives","Archives"],["settings","Settings"]];
 
   return (
     <div style={c.wrap}>
@@ -860,6 +958,7 @@ export default function App() {
               {ownerTab === "edit" && renderEditSection()}
               {ownerTab === "shops-mgr" && renderShopsMgr()}
               {ownerTab === "settings" && renderSettings()}
+              {ownerTab === "archives" && renderArchives()}
               <div style={{ padding: "0 1rem 1.5rem" }}>
                 <button style={{ ...c.outlineBtn, color: "var(--text2)" }} onClick={() => { setOwnerUnlocked(false); setPinBuf(""); }}>🔒 Lock</button>
               </div>
