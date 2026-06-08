@@ -17,6 +17,7 @@ const DEFAULT_DB = {
   prices: { kura: 1.5, railway: 2.0 },
   deliveries: {},
   debts: {},
+  debtPayments: {},
   shops: DEF_SHOPS.map(n => ({ name: n, kura: null, railway: null }))
 };
 
@@ -46,6 +47,7 @@ const c = {
   primaryBtn: { width: "100%", padding: 13, fontSize: 15, fontWeight: 600, background: "var(--text)", color: "var(--bg)", border: "none", borderRadius: 12, cursor: "pointer" },
   outlineBtn: { width: "100%", padding: 11, fontSize: 14, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "none", color: "var(--text)", cursor: "pointer" },
   metric: { background: "var(--bg2)", borderRadius: 10, padding: "12px 14px" },
+  metricGreen: { background: "var(--collected-bg)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--collected-border)" },
   listCard: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: "1rem" },
   listRow: last => ({ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", borderBottom: last ? "none" : "1px solid var(--border)" }),
   periodBtn: a => ({ flex: 1, padding: "7px 4px", fontSize: 12, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer", borderColor: a ? "transparent" : "var(--border2)" }),
@@ -57,8 +59,20 @@ const c = {
 };
 
 const CSS = `
-  :root { --bg:#fff; --bg2:#f5f5f4; --text:#1a1a1a; --text2:#6b7280; --border:#e5e7eb; --border2:#d1d5db; --success-bg:#dcfce7; --success-text:#15803d; --success-border:#86efac; }
-  @media(prefers-color-scheme:dark){ :root { --bg:#1c1c1e; --bg2:#2c2c2e; --text:#f2f2f7; --text2:#8e8e93; --border:#3a3a3c; --border2:#48484a; --success-bg:#052e16; --success-text:#86efac; --success-border:#166534; } }
+  :root {
+    --bg:#fff; --bg2:#f5f5f4; --text:#1a1a1a; --text2:#6b7280;
+    --border:#e5e7eb; --border2:#d1d5db;
+    --success-bg:#dcfce7; --success-text:#15803d; --success-border:#86efac;
+    --collected-bg:#f0fdf4; --collected-border:#bbf7d0; --collected-text:#166534;
+  }
+  @media(prefers-color-scheme:dark){
+    :root {
+      --bg:#1c1c1e; --bg2:#2c2c2e; --text:#f2f2f7; --text2:#8e8e93;
+      --border:#3a3a3c; --border2:#48484a;
+      --success-bg:#052e16; --success-text:#86efac; --success-border:#166534;
+      --collected-bg:#052e16; --collected-border:#166534; --collected-text:#4ade80;
+    }
+  }
   *{box-sizing:border-box;margin:0;padding:0} body{background:var(--bg)} button,input{font-family:inherit}
   input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
   input[type=number]{-moz-appearance:textfield}
@@ -73,6 +87,8 @@ const CSS = `
   .bar-label{font-size:12px;color:var(--text2);width:72px;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bar-track{flex:1;height:20px;background:var(--bg2);border-radius:4px;overflow:hidden}
   .bar-fill{height:100%;background:var(--text);border-radius:4px}
+  .sub-metric{display:flex;justify-content:space-between;align-items:center;padding:5px 0 5px 12px;border-top:1px solid var(--border)}
+  .sub-metric:first-child{border-top:1px solid var(--border);margin-top:8px}
 `;
 
 export default function App() {
@@ -159,7 +175,6 @@ export default function App() {
     const obj = { given: { ...entryVals.given } };
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
 
-    // Debt: subtract old session value, add new session value
     const prev = nd.deliveries[TODAY][selShop][selSess];
     const prevVal = prev ? (prev.given?.kura || 0) * shopKura(selShop) + (prev.given?.railway || 0) * shopRail(selShop) : 0;
     const newVal = (entryVals.given?.kura || 0) * shopKura(selShop) + (entryVals.given?.railway || 0) * shopRail(selShop);
@@ -173,9 +188,18 @@ export default function App() {
 
   const saveDebtCollection = async () => {
     const collected = parseFloat(collectedInput) || 0;
+    if (collected <= 0) { toast$("Enter an amount"); return; }
+
+    // Update running debt balance
     const debts = { ...(db_data.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - collected;
-    await upd({ ...db_data, debts });
+
+    // Record the payment with date for period-based reporting
+    const debtPayments = { ...(db_data.debtPayments || {}) };
+    if (!debtPayments[TODAY]) debtPayments[TODAY] = {};
+    debtPayments[TODAY][selShop] = (debtPayments[TODAY][selShop] || 0) + collected;
+
+    await upd({ ...db_data, debts, debtPayments });
     setCollectedInput("");
     toast$("Debt updated ✓");
     setTimeout(() => setView("session"), 300);
@@ -198,14 +222,17 @@ export default function App() {
     await upd(nd); toast$("Saved ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
 
+  // ── calcStats: returns delivery stats + collected money for the period ──
   const calcStats = (period) => {
-    if (!db_data) return { totGK: 0, totGR: 0, totLK: 0, totLR: 0, totRev: 0, ss: {} };
+    if (!db_data) return { totGK: 0, totGR: 0, totLK: 0, totLR: 0, totRev: 0, totCollected: 0, ss: {} };
     const t = todayStr(); let s = t;
     if (period === "week") s = addDays(t, -6);
     if (period === "month") s = addDays(t, -29);
-    let totGK = 0, totGR = 0, totLK = 0, totLR = 0, totRev = 0;
+    let totGK = 0, totGR = 0, totLK = 0, totLR = 0, totRev = 0, totCollected = 0;
     const ss = {};
     db_data.shops.forEach((_, i) => ss[i] = { kura: 0, railway: 0, leftK: 0, leftR: 0, rev: 0 });
+
+    // Delivery stats
     Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.entries(shops).forEach(([idx, sess]) => {
@@ -217,31 +244,101 @@ export default function App() {
           if (!ss[i]) ss[i] = { kura: 0, railway: 0, leftK: 0, leftR: 0, rev: 0 };
           ss[i].kura += k; ss[i].railway += r; ss[i].rev += rev;
           totGK += k; totGR += r; totRev += rev;
-          if (sv.id === "morning") { const lk = d.leftover?.kura || 0, lr = d.leftover?.railway || 0; ss[i].leftK += lk; ss[i].leftR += lr; totLK += lk; totLR += lr; }
+          if (sv.id === "morning") {
+            const lk = d.leftover?.kura || 0, lr = d.leftover?.railway || 0;
+            ss[i].leftK += lk; ss[i].leftR += lr; totLK += lk; totLR += lr;
+          }
         });
       });
     });
-    return { totGK, totGR, totLK, totLR, totRev, ss };
+
+    // Collected money for the period
+    Object.entries(db_data.debtPayments || {}).forEach(([date, shops]) => {
+      if (date < s || date > t) return;
+      Object.values(shops).forEach(amount => { totCollected += amount; });
+    });
+
+    return { totGK, totGR, totLK, totLR, totRev, totCollected, ss };
   };
 
+  // ── CSV Export with Debt + Collected Money columns ──
   const exportCSV = () => {
     const t = todayStr(); let s = t;
     if (repPeriod === "week") s = addDays(t, -6);
     if (repPeriod === "month") s = addDays(t, -29);
-    let csv = "Date,Shop,Session,Kura Given,Railway Given,Kura Price,Railway Price,Revenue,Leftover Kura,Leftover Railway\n";
-    Object.entries(db_data?.deliveries || {}).sort().forEach(([date, shops]) => {
+
+    // Build initial debt balance per shop at the START of the period
+    // = current debt minus all deliveries in period + all collections in period
+    const runningDebt = {};
+    db_data.shops.forEach((_, i) => { runningDebt[i] = db_data.debts?.[i] || 0; });
+
+    // Subtract deliveries that happened IN the period (to get balance before period)
+    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.entries(shops).forEach(([idx, sess]) => {
         const i = parseInt(idx);
+        SESS.forEach(sv => {
+          const d = sess[sv.id]; if (!d) return;
+          const k = d.given?.kura || 0, r = d.given?.railway || 0;
+          runningDebt[i] -= k * shopKura(i) + r * shopRail(i);
+        });
+      });
+    });
+
+    // Add back collections that happened IN the period
+    Object.entries(db_data.debtPayments || {}).forEach(([date, shops]) => {
+      if (date < s || date > t) return;
+      Object.entries(shops).forEach(([idx, amount]) => {
+        runningDebt[parseInt(idx)] += amount;
+      });
+    });
+
+    // Now runningDebt[i] = balance at start of period. Build CSV row by row.
+    let csv = "Date,Shop,Session,Kura Given,Railway Given,Kura Price,Railway Price,Revenue,Leftover Kura,Leftover Railway,Debt,Collected Money\n";
+
+    // Group deliveries by date then shop for ordering
+    const sortedDates = Object.keys(db_data.deliveries || {}).filter(d => d >= s && d <= t).sort();
+
+    sortedDates.forEach(date => {
+      const shops = db_data.deliveries[date];
+      // Get collected payments for this date per shop
+      const dayPayments = db_data.debtPayments?.[date] || {};
+
+      Object.entries(shops).forEach(([idx, sess]) => {
+        const i = parseInt(idx);
         const shop = db_data.shops[i]?.name || ("Shop " + idx);
+
+        // Find which sessions have data, to know which is the last
+        const sessWithData = SESS.filter(sv => {
+          const d = sess[sv.id];
+          return d && (d.given?.kura > 0 || d.given?.railway > 0);
+        });
+        const lastSessId = sessWithData.length ? sessWithData[sessWithData.length - 1].id : null;
+        const collectedToday = dayPayments[i] || dayPayments[String(i)] || 0;
+
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
           const k = d.given?.kura || 0, r = d.given?.railway || 0; if (!k && !r) return;
           const lk = d.leftover?.kura || 0, lr = d.leftover?.railway || 0;
-          csv += `${date},${shop},${sv.label},${k},${r},${shopKura(i).toFixed(2)},${shopRail(i).toFixed(2)},${(k*shopKura(i)+r*shopRail(i)).toFixed(2)},${lk},${lr}\n`;
+          const rev = k * shopKura(i) + r * shopRail(i);
+
+          // Advance running debt: add this delivery's revenue
+          runningDebt[i] += rev;
+
+          // Collected money: only on last session row for this shop/day
+          const isLastSess = sv.id === lastSessId;
+          let collected = 0;
+          if (isLastSess && collectedToday > 0) {
+            collected = collectedToday;
+            runningDebt[i] -= collected;
+          }
+
+          const debtAfter = runningDebt[i];
+          csv += `${date},${shop},${sv.label},${k},${r},${shopKura(i).toFixed(2)},${shopRail(i).toFixed(2)},${rev.toFixed(2)},${lk},${lr},${debtAfter.toFixed(2)},${collected > 0 ? collected.toFixed(2) : ""}\n`;
         });
       });
     });
+
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `bread-delivery-${repPeriod}.csv`; a.click();
@@ -272,7 +369,7 @@ export default function App() {
     await upd({ ...db_data, pin: pinNew }); toast$("PIN changed ✓"); setPinOld(""); setPinNew("");
   };
 
-  const { totGK, totGR, totLK, totLR, totRev, ss } = calcStats(dashPeriod);
+  const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
   const repStats = calcStats(repPeriod);
 
   if (loading) return (
@@ -497,47 +594,83 @@ export default function App() {
     }
   };
 
+  // ── Dashboard ──
   const renderDashboard = () => {
+    const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
     const revs = db_data.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
     const maxR = revs.length ? revs[0].rev : 1;
-    const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
-    const shopsInDebt = Object.values(db_data.debts || {}).filter(d => d > 0).length;
+
     return (
       <div style={c.pad}>
+        {/* Period selector */}
         <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
-          {[["day","Today"],["week","7 days"],["month","30 days"]].map(([p,l]) => <button key={p} style={c.periodBtn(dashPeriod===p)} onClick={() => setDashPeriod(p)}>{l}</button>)}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
-          {[["Revenue",totRev.toFixed(2)+" ₼"],["Total given",totGK+totGR],["Kura given",totGK],["Railway given",totGR],["Leftovers back",totLK+totLR],["Net delivered",(totGK+totGR)-(totLK+totLR)],["Total debt",totalDebt.toFixed(2)+" ₼"],["Shops in debt",shopsInDebt]].map(([l,v]) => (
-            <div key={l} style={c.metric}><div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>{l}</div><div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div></div>
+          {[["day","Today"],["week","7 days"],["month","30 days"]].map(([p,l]) => (
+            <button key={p} style={c.periodBtn(dashPeriod===p)} onClick={() => setDashPeriod(p)}>{l}</button>
           ))}
         </div>
+
+        {/* Revenue — full width */}
+        <div style={{ ...c.metric, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Revenue</div>
+          <div style={{ fontSize: 24, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
+        </div>
+
+        {/* Total Given with Kura / Railway sub-rows */}
+        <div style={{ ...c.metric, marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 11, color: "var(--text2)" }}>Total given</div>
+            <div style={{ fontSize: 20, fontWeight: 600 }}>{totGK + totGR}</div>
+          </div>
+          <div className="sub-metric">
+            <span style={{ fontSize: 12, color: "var(--text2)" }}>Kura</span>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>{totGK}</span>
+          </div>
+          <div className="sub-metric">
+            <span style={{ fontSize: 12, color: "var(--text2)" }}>Railway</span>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>{totGR}</span>
+          </div>
+        </div>
+
+        {/* Total Leftovers */}
+        <div style={{ ...c.metric, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Total leftovers back</div>
+          <div style={{ fontSize: 20, fontWeight: 600 }}>{totLK + totLR}</div>
+        </div>
+
+        {/* Total Debt */}
+        <div style={{ ...c.metric, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Total debt</div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
+            {totalDebt.toFixed(2)} ₼
+          </div>
+        </div>
+
+        {/* Total Collected — greenish */}
+        <div style={{ ...c.metricGreen, marginBottom: "1rem" }}>
+          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Total collected</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--collected-text)" }}>
+            {totCollected.toFixed(2)} ₼
+          </div>
+        </div>
+
+        {/* Debt by shop */}
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Debt by shop</div>
         <div style={c.listCard}>
-          {db_data.shops.map((s, i) => {
-            const debt = db_data.debts?.[i] || 0;
-            if (debt === 0) return null;
-            return (
-              <div key={i} style={c.listRow(i === db_data.shops.length - 1)}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>
-                  {debt < 0 ? `+${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}
-                </div>
-              </div>
-            );
-          }).filter(Boolean).length ? db_data.shops.map((s, i) => {
-            const debt = db_data.debts?.[i] || 0;
-            if (debt === 0) return null;
-            return (
-              <div key={i} style={c.listRow(i === db_data.shops.length - 1)}>
+          {(() => {
+            const rows = db_data.shops.map((s, i) => ({ s, i, debt: db_data.debts?.[i] || 0 })).filter(x => x.debt !== 0);
+            if (!rows.length) return <div style={{ padding: "1.5rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No outstanding debts.</div>;
+            return rows.map(({ s, i, debt }, ri) => (
+              <div key={i} style={c.listRow(ri === rows.length - 1)}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>
                   {debt < 0 ? `Credit: ${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}
                 </div>
               </div>
-            );
-          }) : <div style={{ padding: "1.5rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No outstanding debts.</div>}
+            ));
+          })()}
         </div>
+
+        {/* Revenue by shop */}
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Revenue by shop</div>
         {revs.length ? revs.map(x => (
           <div key={x.name} className="bar-row">
