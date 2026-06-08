@@ -142,12 +142,42 @@ export default function App() {
   const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
   const TODAY = todayStr();
 
+  const triggerArchiveIfMonday = async (data) => {
+    const today = new Date();
+    const isMonday = today.getDay() === 1;
+    if (!isMonday) return;
+    const lastArchive = localStorage.getItem("lastArchiveDate");
+    const todayKey = todayStr();
+    if (lastArchive === todayKey) return;
+    try {
+      const res = await fetch("/api/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliveries: data.deliveries || {},
+          debtPayments: data.debtPayments || {},
+          debts: data.debts || {},
+          shops: data.shops || [],
+          prices: data.prices || {},
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        localStorage.setItem("lastArchiveDate", todayKey);
+        toast$("\u📦 Weekly archive saved to Drive ✓");
+      }
+    } catch (e) {
+      console.error("Archive failed:", e);
+    }
+  };
+
   useEffect(() => {
     if (pinBuf.length < 4) return;
     if (pinBuf === db_data?.pin) {
       setOwnerUnlocked(true); setPinBuf(""); setPinErr("");
       setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
       setSettPrices({ kura: String(db_data.prices.kura), damiryolu: String(db_data.prices.damiryolu) });
+      triggerArchiveIfMonday(db_data);
     } else {
       setPinErr("Wrong PIN. Try again.");
       setTimeout(() => { setPinBuf(""); setPinErr(""); }, 900);
