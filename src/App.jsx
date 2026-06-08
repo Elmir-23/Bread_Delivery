@@ -164,7 +164,7 @@ export default function App() {
       const json = await res.json();
       if (json.success) {
         localStorage.setItem("lastArchiveDate", todayKey);
-        toast$("\u📦 Weekly archive saved to Drive ✓");
+        toast$("📦 Weekly archive saved to Drive ✓");
       }
     } catch (e) {
       console.error("Archive failed:", e);
