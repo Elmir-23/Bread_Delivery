@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { db } from "./firebase";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 
 const SESS = [
   { id: "morning", label: "Morning", icon: "🌅", sub: "Given + collect leftovers" },
@@ -6,25 +8,17 @@ const SESS = [
   { id: "evening", label: "Evening", icon: "🌙", sub: "Given only" },
 ];
 const DEF_SHOPS = ["Shahin","Murad","Alasgar","50_Gapik","Fuad","Elbrus","Ramal","Suraddin","Khila","Kolya","Nur-S"];
-const STORAGE_KEY = "bdapp_v1";
+const DEFAULT_DB = {
+  pin: "1234",
+  prices: { kura: 1.5, railway: 2.0 },
+  deliveries: {},
+  shops: DEF_SHOPS.map(n => ({ name: n, kura: null, railway: null }))
+};
 
 function todayStr() { return new Date().toISOString().split("T")[0]; }
 function addDays(s, n) { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().split("T")[0]; }
 function fmtDate(s) { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
 function fmtDateShort(s) { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); }
-
-function loadDB() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p.shops && typeof p.shops[0] === "string") p.shops = p.shops.map(n => ({ name: n, kura: null, railway: null }));
-      return { pin: "1234", prices: { kura: 1.5, railway: 2.0 }, deliveries: {}, shops: DEF_SHOPS.map(n => ({ name: n, kura: null, railway: null })), ...p };
-    }
-  } catch {}
-  return { pin: "1234", prices: { kura: 1.5, railway: 2.0 }, deliveries: {}, shops: DEF_SHOPS.map(n => ({ name: n, kura: null, railway: null })) };
-}
-function saveDB(db) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch {} }
 
 const c = {
   wrap: { maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: "var(--bg)", fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 15, color: "var(--text)" },
@@ -53,7 +47,7 @@ const c = {
   settRow: last => ({ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: last ? "none" : "1px solid var(--border)" }),
   pinDot: filled => ({ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--border2)", background: filled ? "var(--text)" : "var(--bg2)" }),
   pinKey: { padding: 14, fontSize: 20, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "var(--bg)", color: "var(--text)", cursor: "pointer", textAlign: "center" },
-  ownerNavBtn: a => ({ flex: 1, padding: "7px 4px", fontSize: 11, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer" }),
+  ownerNavBtn: a => ({ flex: "none", padding: "7px 10px", fontSize: 11, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer" }),
   tag: { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, padding: "2px 7px", borderRadius: 10, background: "var(--success-bg)", color: "var(--success-text)", fontWeight: 600 },
 };
 
@@ -77,30 +71,24 @@ const CSS = `
 `;
 
 export default function App() {
-  const [db, setDB] = useState(() => loadDB());
+  const [db_data, setDbData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("delivery");
-
-  // Delivery state — always today, no date nav
   const [view, setView] = useState("shops");
   const [selShop, setSelShop] = useState(null);
   const [selSess, setSelSess] = useState(null);
   const [entryVals, setEntryVals] = useState({});
-
-  // Owner state
   const [ownerUnlocked, setOwnerUnlocked] = useState(false);
   const [ownerTab, setOwnerTab] = useState("dashboard");
   const [pinBuf, setPinBuf] = useState("");
   const [pinErr, setPinErr] = useState("");
   const [dashPeriod, setDashPeriod] = useState("day");
   const [repPeriod, setRepPeriod] = useState("day");
-
-  // Owner — edit past dates
   const [editDate, setEditDate] = useState(todayStr());
-  const [editView, setEditView] = useState("date-shops"); // date-shops | date-session | date-entry
+  const [editView, setEditView] = useState("date-shops");
   const [editSelShop, setEditSelShop] = useState(null);
   const [editSelSess, setEditSelSess] = useState(null);
   const [editEntryVals, setEditEntryVals] = useState({});
-
   const [toast, setToast] = useState("");
   const [shopEdits, setShopEdits] = useState([]);
   const [newShopName, setNewShopName] = useState("");
@@ -108,19 +96,39 @@ export default function App() {
   const [pinOld, setPinOld] = useState("");
   const [pinNew, setPinNew] = useState("");
 
-  const upd = (newDB) => { setDB(newDB); saveDB(newDB); };
+  // ── Firebase: listen to live data ──
+  useEffect(() => {
+    const ref = doc(db, "app", "data");
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setDbData(snap.data());
+      } else {
+        // First time — write defaults
+        setDoc(ref, DEFAULT_DB);
+        setDbData(DEFAULT_DB);
+      }
+      setLoading(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const upd = async (newData) => {
+    setDbData(newData);
+    await setDoc(doc(db, "app", "data"), newData);
+  };
+
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
 
-  const shopKura = (i) => db.shops[i]?.kura ?? db.prices.kura;
-  const shopRail = (i) => db.shops[i]?.railway ?? db.prices.railway;
+  const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
+  const shopRail = (i) => db_data?.shops[i]?.railway ?? db_data?.prices?.railway ?? 2.0;
 
-  // PIN check
+  // PIN
   useEffect(() => {
     if (pinBuf.length < 4) return;
-    if (pinBuf === db.pin) {
+    if (pinBuf === db_data?.pin) {
       setOwnerUnlocked(true); setPinBuf(""); setPinErr("");
-      setShopEdits(db.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
-      setSettPrices({ kura: String(db.prices.kura), railway: String(db.prices.railway) });
+      setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
+      setSettPrices({ kura: String(db_data.prices.kura), railway: String(db_data.prices.railway) });
     } else {
       setPinErr("Wrong PIN. Try again.");
       setTimeout(() => { setPinBuf(""); setPinErr(""); }, 900);
@@ -134,53 +142,50 @@ export default function App() {
     setPinBuf(p => p + k);
   };
 
-  // ── DELIVERY (today only) ──
   const TODAY = todayStr();
 
+  // Delivery entry
   const openDeliveryEntry = (shopIdx, sessId) => {
     setSelShop(shopIdx); setSelSess(sessId);
-    const ex = db.deliveries[TODAY]?.[shopIdx]?.[sessId] || {};
+    const ex = db_data?.deliveries?.[TODAY]?.[shopIdx]?.[sessId] || {};
     setEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
     setView("entry");
   };
-
   const adjDelivery = (g, t, d) => setEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
-
-  const saveDeliveryEntry = () => {
-    const nd = { ...db, deliveries: { ...db.deliveries, [TODAY]: { ...(db.deliveries[TODAY] || {}), [selShop]: { ...(db.deliveries[TODAY]?.[selShop] || {}) } } } };
+  const saveDeliveryEntry = async () => {
+    const nd = { ...db_data, deliveries: { ...db_data.deliveries, [TODAY]: { ...(db_data.deliveries?.[TODAY] || {}), [selShop]: { ...(db_data.deliveries?.[TODAY]?.[selShop] || {}) } } } };
     const obj = { given: { ...entryVals.given } };
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
     nd.deliveries[TODAY][selShop][selSess] = obj;
-    upd(nd); toast$("Saved ✓"); setTimeout(() => setView("session"), 300);
+    await upd(nd); toast$("Saved ✓"); setTimeout(() => setView("session"), 300);
   };
 
-  // ── OWNER EDIT (any date) ──
+  // Owner edit entry
   const openEditEntry = (shopIdx, sessId) => {
     setEditSelShop(shopIdx); setEditSelSess(sessId);
-    const ex = db.deliveries[editDate]?.[shopIdx]?.[sessId] || {};
+    const ex = db_data?.deliveries?.[editDate]?.[shopIdx]?.[sessId] || {};
     setEditEntryVals({ given: { kura: ex.given?.kura || 0, railway: ex.given?.railway || 0 }, leftover: { kura: ex.leftover?.kura || 0, railway: ex.leftover?.railway || 0 } });
     setEditView("date-entry");
   };
-
   const adjEdit = (g, t, d) => setEditEntryVals(prev => ({ ...prev, [g]: { ...prev[g], [t]: Math.max(0, (prev[g]?.[t] || 0) + d) } }));
-
-  const saveEditEntry = () => {
-    const nd = { ...db, deliveries: { ...db.deliveries, [editDate]: { ...(db.deliveries[editDate] || {}), [editSelShop]: { ...(db.deliveries[editDate]?.[editSelShop] || {}) } } } };
+  const saveEditEntry = async () => {
+    const nd = { ...db_data, deliveries: { ...db_data.deliveries, [editDate]: { ...(db_data.deliveries?.[editDate] || {}), [editSelShop]: { ...(db_data.deliveries?.[editDate]?.[editSelShop] || {}) } } } };
     const obj = { given: { ...editEntryVals.given } };
     if (editSelSess === "morning") obj.leftover = { ...editEntryVals.leftover };
     nd.deliveries[editDate][editSelShop][editSelSess] = obj;
-    upd(nd); toast$("Saved ✓"); setTimeout(() => setEditView("date-session"), 300);
+    await upd(nd); toast$("Saved ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
 
-  // ── STATS ──
+  // Stats
   const calcStats = (period) => {
+    if (!db_data) return { totGK: 0, totGR: 0, totLK: 0, totLR: 0, totRev: 0, ss: {} };
     const t = todayStr(); let s = t;
     if (period === "week") s = addDays(t, -6);
     if (period === "month") s = addDays(t, -29);
     let totGK = 0, totGR = 0, totLK = 0, totLR = 0, totRev = 0;
     const ss = {};
-    db.shops.forEach((_, i) => ss[i] = { kura: 0, railway: 0, leftK: 0, leftR: 0, rev: 0 });
-    Object.entries(db.deliveries).forEach(([date, shops]) => {
+    db_data.shops.forEach((_, i) => ss[i] = { kura: 0, railway: 0, leftK: 0, leftR: 0, rev: 0 });
+    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.entries(shops).forEach(([idx, sess]) => {
         const i = parseInt(idx);
@@ -203,11 +208,11 @@ export default function App() {
     if (repPeriod === "week") s = addDays(t, -6);
     if (repPeriod === "month") s = addDays(t, -29);
     let csv = "Date,Shop,Session,Kura Given,Railway Given,Kura Price,Railway Price,Revenue,Leftover Kura,Leftover Railway\n";
-    Object.entries(db.deliveries).sort().forEach(([date, shops]) => {
+    Object.entries(db_data?.deliveries || {}).sort().forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.entries(shops).forEach(([idx, sess]) => {
         const i = parseInt(idx);
-        const shop = db.shops[i]?.name || ("Shop " + idx);
+        const shop = db_data.shops[i]?.name || ("Shop " + idx);
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
           const k = d.given?.kura || 0, r = d.given?.railway || 0; if (!k && !r) return;
@@ -222,41 +227,48 @@ export default function App() {
     toast$("Downloading CSV…");
   };
 
-  const saveShops = () => {
+  const saveShops = async () => {
     const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, railway: s.railStr !== "" ? parseFloat(s.railStr) : null }));
-    upd({ ...db, shops }); toast$("Shops saved ✓");
+    await upd({ ...db_data, shops }); toast$("Shops saved ✓");
   };
   const addShop = () => {
     if (!newShopName.trim()) return;
-    const shops = [...db.shops, { name: newShopName.trim(), kura: null, railway: null }];
-    upd({ ...db, shops });
+    const shops = [...db_data.shops, { name: newShopName.trim(), kura: null, railway: null }];
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
     setNewShopName("");
+    upd({ ...db_data, shops });
   };
   const removeShop = (i) => {
-    if (db.shops.length <= 1) return;
-    const shops = db.shops.filter((_, x) => x !== i);
-    upd({ ...db, shops });
+    if (db_data.shops.length <= 1) return;
+    const shops = db_data.shops.filter((_, x) => x !== i);
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.railway !== null ? String(s.railway) : "" })));
+    upd({ ...db_data, shops });
   };
-  const savePrices = () => { upd({ ...db, prices: { kura: parseFloat(settPrices.kura) || 0, railway: parseFloat(settPrices.railway) || 0 } }); toast$("Prices saved ✓"); };
-  const changePin = () => {
-    if (pinOld !== db.pin) { toast$("Wrong current PIN"); return; }
+  const savePrices = async () => { await upd({ ...db_data, prices: { kura: parseFloat(settPrices.kura) || 0, railway: parseFloat(settPrices.railway) || 0 } }); toast$("Prices saved ✓"); };
+  const changePin = async () => {
+    if (pinOld !== db_data.pin) { toast$("Wrong current PIN"); return; }
     if (pinNew.length !== 4 || !/^\d+$/.test(pinNew)) { toast$("PIN must be 4 digits"); return; }
-    upd({ ...db, pin: pinNew }); toast$("PIN changed ✓"); setPinOld(""); setPinNew("");
+    await upd({ ...db_data, pin: pinNew }); toast$("PIN changed ✓"); setPinOld(""); setPinNew("");
   };
 
   const { totGK, totGR, totLK, totLR, totRev, ss } = calcStats(dashPeriod);
   const repStats = calcStats(repPeriod);
 
-  // ── RENDER: Delivery tab (today only, no date nav) ──
+  // ── Loading screen ──
+  if (loading) return (
+    <div style={{ ...c.wrap, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+      <div style={{ textAlign: "center", color: "var(--text2)", fontSize: 14 }}>Loading…</div>
+    </div>
+  );
+
+  // ── Delivery screens ──
   const renderShopsScreen = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Select shop</div>
       <div style={c.shopGrid}>
-        {db.shops.map((s, i) => {
-          const sd = db.deliveries[TODAY]?.[i] || {};
+        {db_data.shops.map((s, i) => {
+          const sd = db_data.deliveries?.[TODAY]?.[i] || {};
           const done = SESS.some(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
           return (
             <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
@@ -270,12 +282,12 @@ export default function App() {
   );
 
   const renderSessionScreen = () => {
-    const sd = db.deliveries[TODAY]?.[selShop] || {};
+    const sd = db_data.deliveries?.[TODAY]?.[selShop] || {};
     return (
       <div>
         <div style={c.topbar}>
           <button style={c.backBtn} onClick={() => setView("shops")}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[selShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
+          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[selShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
         </div>
         <div style={c.pad}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Choose session</div>
@@ -305,7 +317,7 @@ export default function App() {
       <div>
         <div style={c.topbar}>
           <button style={c.backBtn} onClick={backFn}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[shopIdx]?.name} — {s?.label}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(date)}</div></div>
+          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[shopIdx]?.name} — {s?.label}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(date)}</div></div>
         </div>
         <div style={c.pad}>
           <div style={c.block}>
@@ -342,11 +354,11 @@ export default function App() {
     );
   };
 
-  // ── RENDER: Owner — edit past dates ──
+  // ── Owner: edit past dates ──
   const renderEditSection = () => {
     const isEditToday = editDate === todayStr();
     if (editView === "date-shops") {
-      const sd = db.deliveries[editDate] || {};
+      const sd = db_data.deliveries?.[editDate] || {};
       return (
         <div style={c.pad}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Edit deliveries by date</div>
@@ -356,7 +368,7 @@ export default function App() {
             <button style={c.dateBtn(isEditToday)} onClick={() => { if (!isEditToday) setEditDate(d => addDays(d, 1)); }}>›</button>
           </div>
           <div style={{ ...c.shopGrid, marginTop: 12 }}>
-            {db.shops.map((s, i) => {
+            {db_data.shops.map((s, i) => {
               const done = SESS.some(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.railway));
               return (
                 <button key={i} style={c.shopBtn} onClick={() => { setEditSelShop(i); setEditView("date-session"); }}>
@@ -370,12 +382,12 @@ export default function App() {
       );
     }
     if (editView === "date-session") {
-      const sd = db.deliveries[editDate]?.[editSelShop] || {};
+      const sd = db_data.deliveries?.[editDate]?.[editSelShop] || {};
       return (
         <div>
           <div style={c.topbar}>
             <button style={c.backBtn} onClick={() => setEditView("date-shops")}>‹</button>
-            <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db.shops[editSelShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(editDate)}</div></div>
+            <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[editSelShop]?.name}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(editDate)}</div></div>
           </div>
           <div style={c.pad}>
             <div style={c.sessList}>
@@ -401,9 +413,9 @@ export default function App() {
     }
   };
 
-  // ── RENDER: Dashboard ──
+  // ── Owner: dashboard ──
   const renderDashboard = () => {
-    const revs = db.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
+    const revs = db_data.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
     const maxR = revs.length ? revs[0].rev : 1;
     return (
       <div style={c.pad}>
@@ -427,14 +439,14 @@ export default function App() {
     );
   };
 
-  // ── RENDER: Reports ──
+  // ── Owner: reports ──
   const renderReports = () => {
     const { ss: rss } = repStats;
     const t = todayStr(); let s = t;
     if (repPeriod === "week") s = addDays(t, -6);
     if (repPeriod === "month") s = addDays(t, -29);
     const dateRows = [];
-    Object.entries(db.deliveries).sort().reverse().forEach(([date, shops]) => {
+    Object.entries(db_data?.deliveries || {}).sort().reverse().forEach(([date, shops]) => {
       if (date < s || date > t) return;
       let dGK = 0, dGR = 0, dLK = 0, dLR = 0, dRev = 0;
       Object.entries(shops).forEach(([idx, sess]) => {
@@ -464,17 +476,16 @@ export default function App() {
         </div>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>By shop</div>
         <div style={c.listCard}>
-          {db.shops.filter((_, i) => rss[i] && (rss[i].kura || rss[i].railway)).length ? db.shops.map((shop, i) => {
-            const v = rss[i]; if (!v || (!v.kura && !v.railway)) return null;
-            return (<div key={i} style={c.listRow(i === db.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.railway} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>);
-          }) : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
+          {db_data.shops.filter((_, i) => rss[i] && (rss[i].kura || rss[i].railway)).length
+            ? db_data.shops.map((shop, i) => { const v = rss[i]; if (!v || (!v.kura && !v.railway)) return null; return (<div key={i} style={c.listRow(i === db_data.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.railway} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>); })
+            : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
         </div>
         <button style={c.outlineBtn} onClick={exportCSV}>⬇ Export to CSV / Excel</button>
       </div>
     );
   };
 
-  // ── RENDER: Shops manager ──
+  // ── Owner: shops manager ──
   const renderShopsMgr = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10 }}>Leave price blank to use default.</div>
@@ -484,8 +495,8 @@ export default function App() {
           {shopEdits.map((s, i) => (
             <div key={i} className="shop-edit-grid">
               <input type="text" value={s.name} onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-              <input type="number" value={s.kuraStr} placeholder={db.prices.kura.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, kuraStr: e.target.value } : x))} />
-              <input type="number" value={s.railStr} placeholder={db.prices.railway.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, railStr: e.target.value } : x))} />
+              <input type="number" value={s.kuraStr} placeholder={db_data.prices.kura.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, kuraStr: e.target.value } : x))} />
+              <input type="number" value={s.railStr} placeholder={db_data.prices.railway.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, railStr: e.target.value } : x))} />
               <button onClick={() => removeShop(i)}>🗑</button>
             </div>
           ))}
@@ -499,7 +510,7 @@ export default function App() {
     </div>
   );
 
-  // ── RENDER: Settings ──
+  // ── Owner: settings ──
   const renderSettings = () => (
     <div style={c.pad}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Default bread prices</div>
@@ -535,9 +546,7 @@ export default function App() {
     <div style={c.wrap}>
       <style>{CSS}</style>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" />
-
       {toast && <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", padding: "10px 22px", borderRadius: 30, fontSize: 14, zIndex: 999, whiteSpace: "nowrap" }}>{toast}</div>}
-
       <div style={c.nav}>
         {[["delivery","🚚","Delivery"],["owner","🔐","Owner"]].map(([key,icon,lbl]) => (
           <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") setView("shops"); }}>
@@ -545,7 +554,6 @@ export default function App() {
           </button>
         ))}
       </div>
-
       {tab === "delivery" && (
         <>
           {view === "shops" && renderShopsScreen()}
@@ -553,7 +561,6 @@ export default function App() {
           {view === "entry" && renderEntryForm(entryVals, adjDelivery, saveDeliveryEntry, () => setView("session"), selShop, selSess, TODAY)}
         </>
       )}
-
       {tab === "owner" && (
         <>
           {!ownerUnlocked && (
@@ -573,7 +580,7 @@ export default function App() {
             <div>
               <div style={{ padding: "1rem 1rem 0" }}>
                 <div style={{ display: "flex", gap: 5, marginBottom: "1rem", flexWrap: "wrap" }}>
-                  {ownerTabs.map(([k,l]) => <button key={k} style={{ ...c.ownerNavBtn(ownerTab===k), flex: "none", padding: "7px 10px" }} onClick={() => { setOwnerTab(k); if (k==="edit") setEditView("date-shops"); }}>{l}</button>)}
+                  {ownerTabs.map(([k,l]) => <button key={k} style={c.ownerNavBtn(ownerTab===k)} onClick={() => { setOwnerTab(k); if (k==="edit") setEditView("date-shops"); }}>{l}</button>)}
                 </div>
               </div>
               {ownerTab === "dashboard" && renderDashboard()}
