@@ -269,7 +269,7 @@ export default function App() {
       <div style={c.shopGrid}>
         {db_data.shops.map((s, i) => {
           const sd = db_data.deliveries?.[TODAY]?.[i] || {};
-          const done = SESS.some(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
+          const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
           return (
             <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
               {s.name}
@@ -369,7 +369,7 @@ export default function App() {
           </div>
           <div style={{ ...c.shopGrid, marginTop: 12 }}>
             {db_data.shops.map((s, i) => {
-              const done = SESS.some(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.railway));
+              const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.railway));
               return (
                 <button key={i} style={c.shopBtn} onClick={() => { setEditSelShop(i); setEditView("date-session"); }}>
                   {s.name}
