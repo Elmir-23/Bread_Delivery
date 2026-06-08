@@ -28,7 +28,7 @@ function fmtDateShort(s) { const d = new Date(s + "T00:00:00"); return d.toLocal
 
 const c = {
   wrap: { maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: "var(--bg)", fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 15, color: "var(--text)" },
-  nav: { display: "flex", borderBottom: "1px solid var(--border)" },
+  nav: { display: "flex", borderBottom: "1px solid var(--border)", paddingTop: "env(safe-area-inset-top)" },
   navBtn: a => ({ flex: 1, padding: "10px 4px 13px", background: "none", border: "none", borderBottom: a ? "2.5px solid var(--text)" : "2.5px solid transparent", fontSize: 12, fontWeight: a ? 600 : 400, color: a ? "var(--text)" : "var(--text2)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }),
   topbar: { display: "flex", alignItems: "center", gap: 10, padding: "14px 1rem 12px", borderBottom: "1px solid var(--border)" },
   backBtn: { background: "none", border: "1px solid var(--border2)", borderRadius: 8, width: 32, height: 32, cursor: "pointer", color: "var(--text)", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
