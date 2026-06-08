@@ -45,7 +45,7 @@ const c = {
   shopGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
   shopBtn: { padding: "18px 12px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg)", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left", position: "relative" },
   sessList: { display: "flex", flexDirection: "column", gap: 8 },
-  sessBtn: done => ({ padding: "14px 16px", border: done ? "1px solid var(--success-border)" : "1px solid var(--border)", borderRadius: 12, background: done ? "var(--success-bg)" : "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }),
+  sessBtn: done => ({ padding: "14px 16px", border: done ? "1px solid var(--success-border)" : "1px solid var(--border)", borderRadius: 12, background: done ? "var(--success-bg)" : "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", width: "100%" }),
   block: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "1rem", marginBottom: 10 },
   blockTitle: { fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 },
   breadRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
@@ -628,7 +628,7 @@ export default function App() {
                 return (
                   <button key="debt" style={{ ...c.sessBtn(false), borderColor: debt !== 0 ? (isCredit ? "var(--success-border)" : "#fca5a5") : "var(--border)" }} onClick={() => { setCollectedInput(""); setView("debt"); }}>
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 500, color: isCredit ? "var(--success-text)" : debt > 0 ? "#dc2626" : "var(--text)" }}>💰 Debt</div>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: isCredit ? "var(--success-text)" : debt > 0 ? "#dc2626" : "var(--text)" }}>💰 Borc</div>
                       <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 2 }}>
                         {debt === 0 ? "Borc yoxdur" : isCredit ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : `Borc: ${debt.toFixed(2)} ₼`}
                       </div>
