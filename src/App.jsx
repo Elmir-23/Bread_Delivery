@@ -7,7 +7,10 @@ import { c } from "./styles/styles";
 import { CSS } from "./styles/global";
 import { buildCSV, loadArchives, triggerArchiveIfNeeded, exportCSVFile, getThisWeekMonday } from "./services/archive";
 import { useAppData } from "./hooks/useAppData";
-
+import ShopsScreen from "./components/delivery/ShopsScreen";
+import SessionScreen from "./components/delivery/SessionScreen";
+import EntryForm from "./components/delivery/EntryForm";
+import DebtScreen from "./components/delivery/DebtScreen";
 
 
 
@@ -42,6 +45,7 @@ const {
   saveShops, addShop, removeShop, confirmRemoveShop,
   savePrices, changePin,
 } = useAppData();
+  const TODAY = todayStr();  // ← bura
   useEffect(() => {
     const ref = doc(db, "app", "data");
     const unsub = onSnapshot(ref, (snap) => {
@@ -350,154 +354,7 @@ const {
     </div>
   );
 
-  const renderShopsScreen = () => (
-    <div style={c.pad}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Mağaza seçin</div>
-      <div style={c.shopGrid}>
-        {db_data.shops.map((s, i) => {
-          const sd = db_data.deliveries?.[TODAY]?.[i] || {};
-          const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.damiryolu));
-          const debt = db_data.debts?.[i] || 0;
-          return (
-            <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
-              {s.name}
-              {done && <span style={{ ...c.tag, position: "absolute", top: 8, right: 8 }}>✓</span>}
-              {debt > 0 && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 4, fontWeight: 600 }}>{debt.toFixed(2)} ₼ debt</div>}
-              {debt < 0 && <div style={{ fontSize: 10, color: "var(--success-text)", marginTop: 4, fontWeight: 600 }}>{Math.abs(debt).toFixed(2)} ₼ credit</div>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const renderSessionScreen = () => {
-    const sd = db_data.deliveries?.[TODAY]?.[selShop] || {};
-    const debt = db_data.debts?.[selShop] || 0;
-    return (
-      <div>
-        <div style={c.topbar}>
-          <button style={c.backBtn} onClick={() => setView("shops")}>‹</button>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[selShop]?.name}</div>
-            <div style={{ fontSize: 12, color: debt > 0 ? "#dc2626" : debt < 0 ? "var(--success-text)" : "var(--text2)" }}>
-              {debt > 0 ? `Borc: ${debt.toFixed(2)} ₼` : debt < 0 ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : fmtDateShort(TODAY)}
-            </div>
-          </div>
-        </div>
-        <div style={c.pad}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Sessiya seçin</div>
-          <div style={c.sessList}>
-            {SESS_WITH_DEBT.map(s => {
-              if (s.id === "debt") {
-                const isCredit = debt < 0;
-                return (
-                  <button key="debt" style={{ ...c.sessBtn(false), borderColor: debt !== 0 ? (isCredit ? "var(--success-border)" : "#fca5a5") : "var(--border)" }} onClick={() => { setCollectedInput(""); setView("debt"); }}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 500, color: isCredit ? "var(--success-text)" : debt > 0 ? "#dc2626" : "var(--text)" }}>💰 Borc</div>
-                      <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 2 }}>
-                        {debt === 0 ? "Borc yoxdur" : isCredit ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : `Borc: ${debt.toFixed(2)} ₼`}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
-                  </button>
-                );
-              }
-              const d = sd[s.id] || {};
-              const has = d.given && (d.given.kura > 0 || d.given.damiryolu > 0);
-              let sub = s.sub;
-              if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.damiryolu}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.damiryolu > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.damiryolu}`; }
-              return (
-                <button key={s.id} style={c.sessBtn(has)} onClick={() => openDeliveryEntry(selShop, s.id)}>
-                  <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
-                  <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderDebtScreen = () => {
-    const currentDebt = db_data.debts?.[selShop] || 0;
-    const isCredit = currentDebt < 0;
-    const newBalance = currentDebt - (parseFloat(collectedInput) || 0);
-    return (
-      <div>
-        <div style={c.topbar}>
-          <button style={c.backBtn} onClick={() => setView("session")}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[selShop]?.name} — Debt</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
-        </div>
-        <div style={c.pad}>
-          <div style={{ ...c.block, textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 6 }}>{isCredit ? "Kredit (artıq ödənildi)" : "Cari borc"}</div>
-            <div style={{ fontSize: 36, fontWeight: 700, color: isCredit ? "var(--success-text)" : currentDebt > 0 ? "#dc2626" : "var(--text)" }}>{Math.abs(currentDebt).toFixed(2)} ₼</div>
-          </div>
-          <div style={c.block}>
-            <div style={c.blockTitle}>Amount collected now</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input type="number" min={0} step={0.01} value={collectedInput} onChange={e => setCollectedInput(e.target.value)} placeholder="0.00" style={{ flex: 1, padding: "10px 12px", fontSize: 20, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
-              <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
-            </div>
-            {collectedInput !== "" && (
-              <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 8, textAlign: "right" }}>
-                New balance: <strong style={{ color: newBalance < 0 ? "var(--success-text)" : newBalance > 0 ? "#dc2626" : "var(--text)" }}>{newBalance.toFixed(2)} ₼</strong>
-              </div>
-            )}
-          </div>
-          <button style={c.primaryBtn} onClick={saveDebtCollection}>Saxla</button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderEntryForm = (vals, adjFn, saveFn, backFn, shopIdx, sessId, date) => {
-    const s = SESS.find(x => x.id === sessId);
-    const isMorn = sessId === "morning";
-    const inputStyle = { fontSize: 18, fontWeight: 600, width: 52, textAlign: "center", border: "1px solid var(--border2)", borderRadius: 8, padding: "5px 4px", background: "var(--bg)", color: "var(--text)" };
-    return (
-      <div>
-        <div style={c.topbar}>
-          <button style={c.backBtn} onClick={backFn}>‹</button>
-          <div><div style={{ fontSize: 16, fontWeight: 500 }}>{db_data.shops[shopIdx]?.name} — {s?.label}</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(date)}</div></div>
-        </div>
-        <div style={c.pad}>
-          <div style={c.block}>
-            <div style={c.blockTitle}>Mağazaya verilən</div>
-            {[["kura","Kura"],["damiryolu","Damiryolu"]].map(([t,lbl]) => (
-              <div key={t} style={{ ...c.breadRow, marginBottom: t === "damiryolu" ? 0 : 10 }}>
-                <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
-                <div style={c.counter}>
-                  <button style={c.cntBtn} onClick={() => adjFn("given", t, -1)}>−</button>
-                  <input type="number" min={0} value={vals.given?.[t] || ""} placeholder="0" onChange={e => { const v = parseInt(e.target.value); adjFn("given", t, (isNaN(v) ? 0 : v) - (vals.given?.[t] || 0)); }} style={inputStyle} />
-                  <button style={c.cntBtn} onClick={() => adjFn("given", t, 1)}>+</button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {isMorn && (
-            <div style={c.block}>
-              <div style={c.blockTitle}>Qalıq geri alındı</div>
-              {[["kura","Kura"],["damiryolu","Damiryolu"]].map(([t,lbl]) => (
-                <div key={t} style={{ ...c.breadRow, marginBottom: t === "damiryolu" ? 0 : 10 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
-                  <div style={c.counter}>
-                    <button style={c.cntBtn} onClick={() => adjFn("leftover", t, -1)}>−</button>
-                    <input type="number" min={0} value={vals.leftover?.[t] || ""} placeholder="0" onChange={e => { const v = parseInt(e.target.value); adjFn("leftover", t, (isNaN(v) ? 0 : v) - (vals.leftover?.[t] || 0)); }} style={inputStyle} />
-                    <button style={c.cntBtn} onClick={() => adjFn("leftover", t, 1)}>+</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <button style={c.primaryBtn} onClick={saveFn}>Saxla</button>
-        </div>
-      </div>
-    );
-  };
+ 
 
   const renderEditSection = () => {
     const isEditToday = editDate === todayStr();
@@ -1036,13 +893,13 @@ const {
         ))}
       </div>
       {tab === "delivery" && (
-        <>
-          {view === "shops" && renderShopsScreen()}
-          {view === "session" && renderSessionScreen()}
-          {view === "entry" && renderEntryForm(entryVals, adjDelivery, saveDeliveryEntry, () => setView("session"), selShop, selSess, TODAY)}
-          {view === "debt" && renderDebtScreen()}
-        </>
-      )}
+  <>
+    {view === "shops" && <ShopsScreen db_data={db_data} TODAY={TODAY} setSelShop={setSelShop} setView={setView} />}
+    {view === "session" && <SessionScreen db_data={db_data} TODAY={TODAY} selShop={selShop} setView={setView} setCollectedInput={setCollectedInput} openDeliveryEntry={openDeliveryEntry} />}
+    {view === "entry" && <EntryForm db_data={db_data} vals={entryVals} adjFn={adjDelivery} saveFn={saveDeliveryEntry} backFn={() => setView("session")} shopIdx={selShop} sessId={selSess} date={TODAY} />}
+    {view === "debt" && <DebtScreen db_data={db_data} TODAY={TODAY} selShop={selShop} collectedInput={collectedInput} setCollectedInput={setCollectedInput} saveDebtCollection={saveDebtCollection} setView={setView} />}
+  </>
+)}
       {tab === "gundelik" && renderGundelik()}
       {tab === "expenses" && renderExpenses()}
       {tab === "owner" && (
