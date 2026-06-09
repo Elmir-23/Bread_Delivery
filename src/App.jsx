@@ -1249,10 +1249,13 @@ export default function App() {
               <thead>
                 <tr>
                   <th rowSpan={2} style={{ ...thStyle(false), verticalAlign: "middle" }}>Mağaza</th>
-                  <th rowSpan={2} style={{ ...thStyle(true), verticalAlign: "middle" }}>Çörək</th>
+                  <th colSpan={3} style={{ ...thStyle(true), borderBottom: "none" }}>Çörək</th>
                   <th colSpan={4} style={{ ...thStyle(true), borderBottom: "none" }}>Borc</th>
                 </tr>
                 <tr>
+                  <th style={thStyle(true)}>Kur</th>
+                  <th style={thStyle(true)}>Dam</th>
+                  <th style={thStyle(true)}>Cəm</th>
                   <th style={thStyle(true)}>Ümumi</th>
                   <th style={thStyle(true)}>Bugün</th>
                   <th style={thStyle(true)}>Yığılan</th>
@@ -1264,7 +1267,9 @@ export default function App() {
                   <>
                     <tr key={r.i} style={{ background: ri % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                       <td style={tdLStyle(true)}>{r.name}</td>
-                      <td style={tdStyle()}>K{r.totalK} D{r.totalD} T{r.totalK+r.totalD}</td>
+                      <td style={tdStyle()}>{r.totalK}</td>
+                      <td style={tdStyle()}>{r.totalD}</td>
+                      <td style={{ ...tdStyle(), fontWeight: 600 }}>{r.totalK+r.totalD}</td>
                       <td style={tdStyle("#dc2626")}>{r.totalDebt.toFixed(1)}</td>
                       <td style={tdStyle("#dc2626")}>{r.todayDebt.toFixed(1)}</td>
                       <td style={tdStyle("var(--success-text)")}>{r.yigilan > 0 ? r.yigilan.toFixed(1) : "—"}</td>
@@ -1274,7 +1279,9 @@ export default function App() {
                       (k || d) ? (
                         <tr key={lbl+r.i} style={{ background: ri % 2 === 0 ? "var(--bg)" : "var(--bg2)", opacity: 0.7 }}>
                           <td style={{ ...tdLStyle(false), paddingLeft: 14, fontSize: 10, color: "var(--text2)" }}>{lbl}</td>
-                          <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>K{k} D{d} T{k+d}</td>
+                          <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>{k}</td>
+                          <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>{d}</td>
+                          <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>{k+d}</td>
                           <td colSpan={4} style={{ border: "1px solid var(--border)" }}></td>
                         </tr>
                       ) : null
@@ -1283,7 +1290,9 @@ export default function App() {
                 ))}
                 <tr style={{ background: "var(--bg2)", fontWeight: 700, borderTop: "2px solid var(--border)" }}>
                   <td style={tdLStyle(true, "var(--bg2)")}>📊 Cəmi</td>
-                  <td style={{ ...tdStyle(), fontWeight: 700 }}>K{totK} D{totD} T{totK+totD}</td>
+                  <td style={{ ...tdStyle(), fontWeight: 700 }}>{totK}</td>
+                  <td style={{ ...tdStyle(), fontWeight: 700 }}>{totD}</td>
+                  <td style={{ ...tdStyle(), fontWeight: 700 }}>{totK+totD}</td>
                   <td style={{ ...tdStyle("#dc2626"), fontWeight: 700 }}>{totUmumi.toFixed(1)}</td>
                   <td style={{ ...tdStyle("#dc2626"), fontWeight: 700 }}>{totTodayDebt.toFixed(1)}</td>
                   <td style={{ ...tdStyle("var(--success-text)"), fontWeight: 700 }}>{totYigilan > 0 ? totYigilan.toFixed(1) : "—"}</td>
@@ -1293,7 +1302,9 @@ export default function App() {
                   (k || d) ? (
                     <tr key={lbl} style={{ background: "var(--bg2)", opacity: 0.8 }}>
                       <td style={{ ...tdLStyle(false, "var(--bg2)"), fontSize: 10, color: "var(--text2)" }}>{lbl}</td>
-                      <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>K{k} D{d} T{k+d}</td>
+                      <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>{k}</td>
+                      <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>{d}</td>
+                      <td style={{ ...tdStyle(), fontSize: 10, color: "var(--text2)" }}>{k+d}</td>
                       <td colSpan={4} style={{ border: "1px solid var(--border)", background: "var(--bg2)" }}></td>
                     </tr>
                   ) : null
