@@ -717,7 +717,8 @@ export default function App() {
                   <button style={c.cntBtn} onClick={() => adjFn("given", t, -1)}>−</button>
                   <input
                     type="number" min={0}
-                    value={vals.given?.[t] || 0}
+                    value={vals.given?.[t] || ""}
+                    placeholder="0"
                     onChange={e => { const v = parseInt(e.target.value); adjFn("given", t, (isNaN(v) ? 0 : v) - (vals.given?.[t] || 0)); }}
                     style={inputStyle}
                   />
@@ -736,7 +737,8 @@ export default function App() {
                     <button style={c.cntBtn} onClick={() => adjFn("leftover", t, -1)}>−</button>
                     <input
                       type="number" min={0}
-                      value={vals.leftover?.[t] || 0}
+                      value={vals.leftover?.[t] || ""}
+                      placeholder="0"
                       onChange={e => { const v = parseInt(e.target.value); adjFn("leftover", t, (isNaN(v) ? 0 : v) - (vals.leftover?.[t] || 0)); }}
                       style={inputStyle}
                     />
