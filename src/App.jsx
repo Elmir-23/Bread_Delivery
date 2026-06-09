@@ -1253,8 +1253,8 @@ export default function App() {
                   <th colSpan={4} style={{ ...thStyle(true), borderBottom: "none" }}>Borc</th>
                 </tr>
                 <tr>
-                  <th style={thStyle(true)}>Bugün</th>
                   <th style={thStyle(true)}>Ümumi</th>
+                  <th style={thStyle(true)}>Bugün</th>
                   <th style={thStyle(true)}>Yığılan</th>
                   <th style={thStyle(true)}>Qalıq</th>
                 </tr>
