@@ -1193,6 +1193,87 @@ export default function App() {
     );
   };
 
+  const renderGundelik = () => {
+    const TODAY = todayStr();
+    const todayDeliveries = db_data.deliveries?.[TODAY] || {};
+    const todayPayments = db_data.debtPayments?.[TODAY] || {};
+
+    // Build per-shop data
+    const shopRows = [];
+    Object.entries(todayDeliveries).forEach(([idx, sess]) => {
+      const i = parseInt(idx);
+      const shop = db_data.shops[i];
+      if (!shop) return;
+
+      let totalK = 0, totalD = 0;
+      SESS.forEach(sv => {
+        const d = sess[sv.id]; if (!d) return;
+        totalK += d.given?.kura || 0;
+        totalD += d.given?.damiryolu || 0;
+      });
+      if (!totalK && !totalD) return;
+
+      const todayDebt = totalK * (shop.kura ?? db_data.prices.kura) + totalD * (shop.damiryolu ?? db_data.prices.damiryolu);
+      const totalDebt = db_data.debts?.[i] || 0;
+      const yigilan = todayPayments[i] || todayPayments[String(i)] || 0;
+      const qalanBorc = totalDebt - yigilan;
+
+      shopRows.push({ i, name: shop.name, totalK, totalD, todayDebt, totalDebt, yigilan, qalanBorc });
+    });
+
+    // Totals
+    const totK = shopRows.reduce((a, r) => a + r.totalK, 0);
+    const totD = shopRows.reduce((a, r) => a + r.totalD, 0);
+    const totTodayDebt = shopRows.reduce((a, r) => a + r.todayDebt, 0);
+    const totUmumi = shopRows.reduce((a, r) => a + r.totalDebt, 0);
+    const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
+    const totQalan = shopRows.reduce((a, r) => a + r.qalanBorc, 0);
+
+    const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 4, marginBottom: 4 };
+    const labelStyle = { fontSize: 12, color: "var(--text2)" };
+    const valStyle = { fontSize: 13, fontWeight: 600 };
+
+    const ShopCard = ({ r }) => (
+      <div style={{ ...c.block, marginBottom: 10 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>{r.name}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Verilən çörək</div>
+        <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={valStyle}>{r.totalK + r.totalD}</span></div>
+        <div style={rowStyle}><span style={labelStyle}>Kura</span><span style={valStyle}>{r.totalK}</span></div>
+        <div style={{ ...rowStyle, marginBottom: 10 }}><span style={labelStyle}>Damiryolu</span><span style={valStyle}>{r.totalD}</span></div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Borc</div>
+        <div style={rowStyle}><span style={labelStyle}>Bugün</span><span style={{ ...valStyle, color: "#dc2626" }}>{r.todayDebt.toFixed(2)} ₼</span></div>
+        <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={{ ...valStyle, color: "#dc2626" }}>{r.totalDebt.toFixed(2)} ₼</span></div>
+        <div style={rowStyle}><span style={labelStyle}>Yığılan</span><span style={{ ...valStyle, color: "var(--success-text)" }}>{r.yigilan.toFixed(2)} ₼</span></div>
+        <div style={rowStyle}><span style={labelStyle}>Qalıq borc</span><span style={{ ...valStyle, color: r.qalanBorc > 0 ? "#dc2626" : "var(--success-text)" }}>{r.qalanBorc.toFixed(2)} ₼</span></div>
+      </div>
+    );
+
+    return (
+      <div style={c.pad}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
+        {shopRows.length === 0 ? (
+          <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>Bu gün hələ çatdırılma yoxdur.</div>
+        ) : (
+          <>
+            {shopRows.map(r => <ShopCard key={r.i} r={r} />)}
+            <div style={{ ...c.block, background: "var(--bg2)", marginTop: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>📊 Gün üzrə cəmi</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Verilən çörək</div>
+              <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={valStyle}>{totK + totD}</span></div>
+              <div style={rowStyle}><span style={labelStyle}>Kura</span><span style={valStyle}>{totK}</span></div>
+              <div style={{ ...rowStyle, marginBottom: 10 }}><span style={labelStyle}>Damiryolu</span><span style={valStyle}>{totD}</span></div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Borc</div>
+              <div style={rowStyle}><span style={labelStyle}>Bugün</span><span style={{ ...valStyle, color: "#dc2626" }}>{totTodayDebt.toFixed(2)} ₼</span></div>
+              <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={{ ...valStyle, color: "#dc2626" }}>{totUmumi.toFixed(2)} ₼</span></div>
+              <div style={rowStyle}><span style={labelStyle}>Yığılan</span><span style={{ ...valStyle, color: "var(--success-text)" }}>{totYigilan.toFixed(2)} ₼</span></div>
+              <div style={rowStyle}><span style={labelStyle}>Qalıq borc</span><span style={{ ...valStyle, color: totQalan > 0 ? "#dc2626" : "var(--success-text)" }}>{totQalan.toFixed(2)} ₼</span></div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   const ownerTabs = [["dashboard","İdarə paneli"],["reports","Hesabatlar"],["edit","Mağazaları tənzimlə"],["shops-mgr","Mağaza əlavə et"],["parametrler","Parametrlər"]];
 
   return (
@@ -1201,7 +1282,7 @@ export default function App() {
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" />
       {toast && <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", padding: "10px 22px", borderRadius: 30, fontSize: 14, zIndex: 999, whiteSpace: "nowrap" }}>{toast}</div>}
       <div style={c.nav}>
-        {[["delivery","🚚","Çatdırılma"],["expenses","🚗","Xərclər"],["owner","🔐","Sahibkar"]].map(([key,icon,lbl]) => (
+        {[["delivery","🚚","Çatdırılma"],["gundelik","📋","Gündəlik"],["expenses","🚗","Xərclər"],["owner","🔐","Sahibkar"]].map(([key,icon,lbl]) => (
           <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") setView("shops"); if (key==="expenses") setExpView("list"); }}>
             <span style={{ fontSize: 18 }}>{icon}</span>{lbl}
           </button>
@@ -1215,6 +1296,7 @@ export default function App() {
           {view === "debt" && renderDebtScreen()}
         </>
       )}
+      {tab === "gundelik" && renderGundelik()}
       {tab === "expenses" && renderExpenses()}
       {tab === "owner" && (
         <>
