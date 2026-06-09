@@ -3,40 +3,10 @@ import { SESS, SESS_WITH_DEBT, EXP_CATS, DEFAULT_DB } from "./constants";
 import { db } from "./firebase";
 import { doc, onSnapshot, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
 import { todayStr, addDays, fmtDate, fmtDateShort } from "./utils/dates";
+import { c } from "./styles/styles";
 
 
 
-const c = {
-  wrap: { maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: "var(--bg)", fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 15, color: "var(--text)" },
-  nav: { display: "flex", borderBottom: "1px solid var(--border)", paddingTop: "env(safe-area-inset-top)" },
-  navBtn: a => ({ flex: 1, padding: "10px 4px 13px", background: "none", border: "none", borderBottom: a ? "2.5px solid var(--text)" : "2.5px solid transparent", fontSize: 12, fontWeight: a ? 600 : 400, color: a ? "var(--text)" : "var(--text2)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }),
-  topbar: { display: "flex", alignItems: "center", gap: 10, padding: "14px 1rem 12px", borderBottom: "1px solid var(--border)" },
-  backBtn: { background: "none", border: "1px solid var(--border2)", borderRadius: 8, width: 32, height: 32, cursor: "pointer", color: "var(--text)", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  dateRow: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 1rem", background: "var(--bg2)" },
-  dateBtn: (disabled) => ({ background: "none", border: "1px solid var(--border2)", borderRadius: 8, width: 30, height: 30, cursor: disabled ? "default" : "pointer", color: "var(--text)", fontSize: 16, opacity: disabled ? 0.3 : 1 }),
-  pad: { padding: "1rem" },
-  shopGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
-  shopBtn: { padding: "18px 12px", border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg)", color: "var(--text)", fontSize: 15, fontWeight: 600, cursor: "pointer", textAlign: "left", position: "relative" },
-  sessList: { display: "flex", flexDirection: "column", gap: 8 },
-  sessBtn: done => ({ padding: "14px 16px", border: done ? "1px solid var(--success-border)" : "1px solid var(--border)", borderRadius: 12, background: done ? "var(--success-bg)" : "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", textAlign: "left", width: "100%" }),
-  block: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, padding: "1rem", marginBottom: 10 },
-  blockTitle: { fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 },
-  breadRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  counter: { display: "flex", alignItems: "center", gap: 8 },
-  cntBtn: { width: 36, height: 36, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg2)", color: "var(--text)", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
-  primaryBtn: { width: "100%", padding: 13, fontSize: 15, fontWeight: 600, background: "var(--text)", color: "var(--bg)", border: "none", borderRadius: 12, cursor: "pointer" },
-  outlineBtn: { width: "100%", padding: 11, fontSize: 14, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "none", color: "var(--text)", cursor: "pointer" },
-  metric: { background: "var(--bg2)", borderRadius: 10, padding: "12px 14px" },
-  metricGreen: { background: "var(--collected-bg)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--collected-border)" },
-  listCard: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: "1rem" },
-  listRow: last => ({ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", borderBottom: last ? "none" : "1px solid var(--border)" }),
-  periodBtn: a => ({ flex: 1, padding: "7px 4px", fontSize: 12, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer", borderColor: a ? "transparent" : "var(--border2)" }),
-  settRow: last => ({ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: last ? "none" : "1px solid var(--border)" }),
-  pinDot: filled => ({ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--border2)", background: filled ? "var(--text)" : "var(--bg2)" }),
-  pinKey: { padding: 14, fontSize: 20, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "var(--bg)", color: "var(--text)", cursor: "pointer", textAlign: "center" },
-  ownerNavBtn: a => ({ flex: "none", padding: "7px 10px", fontSize: 11, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer" }),
-  tag: { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, padding: "2px 7px", borderRadius: 10, background: "var(--success-bg)", color: "var(--success-text)", fontWeight: 600 },
-};
 
 const CSS = `
   :root {
