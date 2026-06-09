@@ -823,6 +823,23 @@ export default function App() {
               )}
               <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditCollected(editSelShop, editDate, collVal)}>Saxla</button>
             </div>
+            <div style={{ ...c.block, marginTop: 10 }}>
+              <div style={c.blockTitle}>💳 Cari borcu düzəlt</div>
+              <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
+                Cari borc: <strong style={{ color: (db_data.debts?.[editSelShop] || 0) > 0 ? "#dc2626" : "var(--success-text)" }}>{(db_data.debts?.[editSelShop] || 0).toFixed(2)} ₼</strong>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="number" step={0.01}
+                  value={editDebtShop === editSelShop ? editDebtVal : ""}
+                  onChange={e => { setEditDebtShop(editSelShop); setEditDebtVal(e.target.value); }}
+                  placeholder={(db_data.debts?.[editSelShop] || 0).toFixed(2)}
+                  style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+                />
+                <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
+              </div>
+              <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditDebt(editSelShop, editDebtVal)}>Saxla</button>
+            </div>
           </div>
         </div>
       );
