@@ -11,6 +11,11 @@ import EntryForm from "./components/delivery/EntryForm";
 import DebtScreen from "./components/delivery/DebtScreen";
 import Expenses from "./components/Expenses";
 import Gundelik from "./components/Gundelik";
+import Dashboard from "./components/owner/Dashboard";
+import Reports from "./components/owner/Reports";
+import EditSection from "./components/owner/EditSection";
+import ShopsMgr from "./components/owner/ShopsMgr";
+import Parametrler from "./components/owner/Parametrler";
 
 export default function App() {
   const {
@@ -136,209 +141,7 @@ export default function App() {
     }
   };
 
-  const renderDashboard = () => {
-    const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
-    const revs = db_data.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
-    const maxR = revs.length ? revs[0].rev : 1;
-    return (
-      <div style={c.pad}>
-        <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
-          {[["day","Bu gün"],["week","7 gün"],["month","30 gün"]].map(([p,l]) => (
-            <button key={p} style={c.periodBtn(dashPeriod===p)} onClick={() => setDashPeriod(p)}>{l}</button>
-          ))}
-        </div>
-        <div style={{ ...c.metric, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Gəlir</div>
-          <div style={{ fontSize: 24, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
-        </div>
-        <div style={{ ...c.metric, marginBottom: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 11, color: "var(--text2)" }}>Ümumi verilən</div>
-            <div style={{ fontSize: 20, fontWeight: 600 }}>{totGK + totGR}</div>
-          </div>
-          <div className="sub-metric"><span style={{ fontSize: 12, color: "var(--text2)" }}>Kura</span><span style={{ fontSize: 13, fontWeight: 500 }}>{totGK}</span></div>
-          <div className="sub-metric"><span style={{ fontSize: 12, color: "var(--text2)" }}>Damiryolu</span><span style={{ fontSize: 13, fontWeight: 500 }}>{totGR}</span></div>
-        </div>
-        <div style={{ ...c.metric, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi qalıq</div>
-          <div style={{ fontSize: 20, fontWeight: 600 }}>{totLK + totLR}</div>
-        </div>
-        <div style={{ ...c.metric, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-          <div style={{ fontSize: 20, fontWeight: 600, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>{totalDebt.toFixed(2)} ₼</div>
-        </div>
-        <div style={{ ...c.metricGreen, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Ümumi yığılan</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--collected-text)" }}>{totCollected.toFixed(2)} ₼</div>
-        </div>
-        {(() => {
-          const { totExp, byCat } = calcExpenses(dashPeriod);
-          if (totExp === 0) return null;
-          return (
-            <div style={{ ...c.metric, marginBottom: "1rem", border: "1px solid #fca5a5" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 11, color: "var(--text2)" }}>🚗 Maşın xərcləri</div>
-                <div style={{ fontSize: 20, fontWeight: 600, color: "#dc2626" }}>{totExp.toFixed(2)} ₼</div>
-              </div>
-              {EXP_CATS.filter(cat => byCat[cat.id] > 0).map(cat => (
-                <div key={cat.id} className="sub-metric">
-                  <span style={{ fontSize: 12, color: "var(--text2)" }}>{cat.icon} {cat.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "#dc2626" }}>{byCat[cat.id].toFixed(2)} ₼</span>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağaza üzrə borc</div>
-        <div style={c.listCard}>
-          {(() => {
-            const rows = db_data.shops.map((s, i) => ({ s, i, debt: db_data.debts?.[i] || 0 })).filter(x => x.debt !== 0);
-            if (!rows.length) return <div style={{ padding: "1.5rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>Borc yoxdur.</div>;
-            return rows.map(({ s, i, debt }) => (
-              <div key={i} style={{ ...c.listRow(false), flexDirection: "column", alignItems: "stretch", gap: 6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>{debt < 0 ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}</div>
-                    <button onClick={() => { setEditDebtShop(editDebtShop === i ? null : i); setEditDebtVal(debt.toFixed(2)); }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid var(--border2)", borderRadius: 6, background: "none", color: "var(--text2)", cursor: "pointer" }}>✏️</button>
-                  </div>
-                </div>
-                {editDebtShop === i && (
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <input type="number" step={0.01} value={editDebtVal} onChange={e => setEditDebtVal(e.target.value)} style={{ flex: 1, padding: "6px 10px", fontSize: 14, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
-                    <span style={{ fontSize: 13, color: "var(--text2)" }}>₼</span>
-                    <button onClick={() => saveEditDebt(i, editDebtVal)} style={{ padding: "6px 12px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}>Saxla</button>
-                  </div>
-                )}
-              </div>
-            ));
-          })()}
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağaza üzrə gəlir</div>
-        {revs.length ? revs.map(x => (
-          <div key={x.name} className="bar-row">
-            <span className="bar-label">{x.name}</span>
-            <div className="bar-track"><div className="bar-fill" style={{ width: `${Math.round(x.rev / maxR * 100)}%` }}></div></div>
-            <span style={{ fontSize: 12, fontWeight: 500, minWidth: 40 }}>{x.rev.toFixed(1)}₼</span>
-          </div>
-        )) : <div style={{ textAlign: "center", padding: "1.5rem", fontSize: 13, color: "var(--text2)" }}>Hələ məlumat yoxdur.</div>}
-      </div>
-    );
-  };
-
-  
-    return (
-      <div style={c.pad}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
-        <button style={{ ...c.primaryBtn, marginBottom: "1rem" }} onClick={() => setExpView("add")}>+ Xərc əlavə et</button>
-        {todayExps.length === 0 ? (
-          <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>Bu gün xərc yoxdur.</div>
-        ) : (
-          <div style={c.listCard}>
-            {todayExps.map((e, i) => {
-              const cat = EXP_CATS.find(c => c.id === e.cat);
-              return (
-                <div key={i} style={c.listRow(i === todayExps.length - 1)}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{cat?.icon} {e.desc}</div>
-                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>{cat?.label}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "#dc2626" }}>{e.amount.toFixed(2)} ₼</div>
-                    <button onClick={() => deleteExpense(TODAY, i)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "var(--text2)" }}>🗑</button>
-                  </div>
-                </div>
-              );
-            })}
-            <div style={{ padding: "10px 14px", background: "var(--bg2)", display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Cəmi</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>{todayExps.reduce((a,e) => a+e.amount, 0).toFixed(2)} ₼</span>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderReports = () => {
-    const { ss: rss } = repStats;
-    const t = todayStr(); let s = t;
-    if (repPeriod === "week") s = addDays(t, -6);
-    if (repPeriod === "month") s = addDays(t, -29);
-    const dateRows = [];
-    Object.entries(db_data?.deliveries || {}).sort().reverse().forEach(([date, shops]) => {
-      if (date < s || date > t) return;
-      let dGK = 0, dGR = 0, dLK = 0, dLR = 0, dRev = 0;
-      Object.entries(shops).forEach(([idx, sess]) => {
-        const i = parseInt(idx);
-        SESS.forEach(sv => {
-          const d = sess[sv.id]; if (!d) return;
-          const k = d.given?.kura || 0, r = d.given?.damiryolu || 0;
-          dGK += k; dGR += r; dRev += k * shopKura(i) + r * shopRail(i);
-          if (sv.id === "morning") { dLK += d.leftover?.kura || 0; dLR += d.leftover?.damiryolu || 0; }
-        });
-      });
-      if (dGK || dGR) dateRows.push({ date, dGK, dGR, dLK, dLR, dRev });
-    });
-    return (
-      <div style={c.pad}>
-        <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
-          {[["day","Bu gün"],["week","7 gün"],["month","30 gün"]].map(([p,l]) => <button key={p} style={c.periodBtn(repPeriod===p)} onClick={() => setRepPeriod(p)}>{l}</button>)}
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>By date</div>
-        <div style={c.listCard}>
-          {dateRows.length ? dateRows.map((row, i) => (
-            <div key={row.date} style={c.listRow(i === dateRows.length - 1)}>
-              <div><div style={{ fontSize: 14, fontWeight: 600 }}>{fmtDate(row.date)}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {row.dGK} · R: {row.dGR} · Left: {row.dLK + row.dLR}</div></div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{row.dRev.toFixed(2)} ₼</div>
-            </div>
-          )) : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>By shop</div>
-        <div style={c.listCard}>
-          {db_data.shops.filter((_, i) => rss[i] && (rss[i].kura || rss[i].damiryolu)).length
-            ? db_data.shops.map((shop, i) => { const v = rss[i]; if (!v || (!v.kura && !v.damiryolu)) return null; return (<div key={i} style={c.listRow(i === db_data.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.damiryolu} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>); })
-            : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
-        </div>
-        <button style={c.outlineBtn} onClick={() => exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDays, toast$)}>⬇ CSV / Excel ixrac et</button>
-      </div>
-    );
-  };
-
-  const renderShopsMgr = () => (
-    <div style={c.pad}>
-      <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10 }}>Leave price blank to use default.</div>
-      <div style={c.listCard}>
-        <div style={{ padding: "8px 14px" }}>
-          <div className="shop-edit-hdr"><span>Name</span><span style={{ textAlign: "right" }}>Kura ₼</span><span style={{ textAlign: "right" }}>Rail ₼</span><span></span></div>
-          {shopEdits.map((s, i) => (
-            <div key={i} className="shop-edit-grid">
-              <input type="text" value={s.name} onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-              <input type="number" value={s.kuraStr} placeholder={db_data.prices.kura.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, kuraStr: e.target.value } : x))} />
-              <input type="number" value={s.railStr} placeholder={db_data.prices.damiryolu.toFixed(2)} min="0" step="0.01" onChange={e => setShopEdits(prev => prev.map((x, j) => j === i ? { ...x, railStr: e.target.value } : x))} />
-              <button onClick={() => removeShop(i)}>🗑</button>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-        <input value={newShopName} onChange={e => setNewShopName(e.target.value)} onKeyDown={e => e.key === "Enter" && addShop()} placeholder="Yeni mağaza adı…" style={{ flex: 1, padding: "9px 12px", fontSize: 14, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)" }} />
-        <button onClick={addShop} style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}>+ Əlavə et</button>
-      </div>
-      <button style={c.primaryBtn} onClick={saveShops}>Bütün mağazaları saxla</button>
-    </div>
-  );
-
-  const renderParametrler = () => {
-    const downloadArchive = (arc) => {
-      const blob = new Blob([arc.csv], { type: "text/csv" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `bread-arxiv-${arc.weekMonday}.csv`;
-      a.click();
-      toast$("CSV yüklənir…");
-    };
-    const handleResetPin = (k) => {
+      const handleResetPin = (k) => {
       if (k === "clr") { setResetPinBuf(""); setResetPinErr(""); return; }
       if (k === "del") { setResetPinBuf(p => p.slice(0,-1)); return; }
       if (resetPinBuf.length >= 4) return;
@@ -570,11 +373,12 @@ export default function App() {
                   {ownerTabs.map(([k,l]) => <button key={k} style={c.ownerNavBtn(ownerTab===k)} onClick={() => { setOwnerTab(k); if (k==="edit") setEditView("date-shops"); }}>{l}</button>)}
                 </div>
               </div>
-              {ownerTab === "dashboard" && renderDashboard()}
-              {ownerTab === "reports" && renderReports()}
-              {ownerTab === "edit" && renderEditSection()}
-              {ownerTab === "shops-mgr" && renderShopsMgr()}
-              {ownerTab === "parametrler" && renderParametrler()}
+              {ownerTab === "dashboard" && <Dashboard db_data={db_data} dashPeriod={dashPeriod} setDashPeriod={setDashPeriod} calcStats={calcStats} calcExpenses={calcExpenses} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} />}
+              {ownerTab === "reports" && <Reports db_data={db_data} repPeriod={repPeriod} setRepPeriod={setRepPeriod} calcStats={calcStats} shopKura={shopKura} shopRail={shopRail} toast$={toast$} />}
+              {ownerTab === "edit" && <EditSection db_data={db_data} editDate={editDate} setEditDate={setEditDate} editView={editView} setEditView={setEditView} editSelShop={editSelShop} setEditSelShop={setEditSelShop} editSelSess={editSelSess} editEntryVals={editEntryVals} adjEdit={adjEdit} saveEditEntry={saveEditEntry} openEditEntry={openEditEntry} editCollected={editCollected} setEditCollected={setEditCollected} saveEditCollected={saveEditCollected} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} />}
+              {ownerTab === "shops-mgr" && <ShopsMgr db_data={db_data} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
+              {ownerTab === "parametrler" && <Parametrler db_data={db_data} archives={archives} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} toast$={toast$} />}
+
               <div style={{ padding: "0 1rem 1.5rem" }}>
                 <button style={{ ...c.outlineBtn, color: "var(--text2)" }} onClick={() => { setOwnerUnlocked(false); setPinBuf(""); }}>🔒 Kilidlə</button>
               </div>
