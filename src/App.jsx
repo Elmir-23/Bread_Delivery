@@ -1,32 +1,8 @@
 import { useState, useEffect } from "react";
+import { SESS, SESS_WITH_DEBT, EXP_CATS, DEFAULT_DB } from "./constants";
 import { db } from "./firebase";
 import { doc, onSnapshot, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
 
-const SESS = [
-  { id: "morning", label: "Səhər", icon: "🌅", sub: "Verilən + qalıq geri alındı" },
-  { id: "afternoon", label: "Günorta", icon: "☀️", sub: "Yalnız verilən" },
-  { id: "evening", label: "Axşam", icon: "🌙", sub: "Yalnız verilən" },
-];
-const SESS_WITH_DEBT = [
-  ...SESS,
-  { id: "debt", label: "Borc", icon: "💰", sub: "Ödəniş yığ" },
-];
-const EXP_CATS = [
-  { id: "benzin", label: "Benzin", icon: "⛽" },
-  { id: "moyka", label: "Moyka", icon: "🚿" },
-  { id: "baxim", label: "Baxım xərcləri", icon: "🔧" },
-  { id: "diger", label: "Digər", icon: "📝" },
-];
-const DEF_SHOPS = ["Rza","Murad","Alasgar","50_Gapik","Fuad","Elbrus","Ramal","Suraddin","Khila","Kolya","Nur-S","Xila","Shaig","Kafe","Selimxan"];
-const DEFAULT_DB = {
-  pin: "1234",
-  prices: { kura: 0.55, damiryolu: 0.65 },
-  deliveries: {},
-  debts: {},
-  debtPayments: {},
-  expenses: {},
-  shops: DEF_SHOPS.map(n => ({ name: n, kura: null, damiryolu: null }))
-};
 
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function addDays(s, n) { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
