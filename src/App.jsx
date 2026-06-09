@@ -6,48 +6,42 @@ import { todayStr, addDays, fmtDate, fmtDateShort } from "./utils/dates";
 import { c } from "./styles/styles";
 import { CSS } from "./styles/global";
 import { buildCSV, loadArchives, triggerArchiveIfNeeded, exportCSVFile, getThisWeekMonday } from "./services/archive";
-
+import { useAppData } from "./hooks/useAppData";
 
 
 
 
 export default function App() {
-  const [db_data, setDbData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("delivery");
-  const [view, setView] = useState("shops");
-  const [selShop, setSelShop] = useState(null);
-  const [selSess, setSelSess] = useState(null);
-  const [entryVals, setEntryVals] = useState({});
-  const [collectedInput, setCollectedInput] = useState("");
-  const [ownerUnlocked, setOwnerUnlocked] = useState(false);
-  const [ownerTab, setOwnerTab] = useState("dashboard");
-  const [pinBuf, setPinBuf] = useState("");
-  const [pinErr, setPinErr] = useState("");
-  const [dashPeriod, setDashPeriod] = useState("day");
-  const [repPeriod, setRepPeriod] = useState("day");
-  const [editDate, setEditDate] = useState(todayStr());
-  const [editView, setEditView] = useState("date-shops");
-  const [editSelShop, setEditSelShop] = useState(null);
-  const [editSelSess, setEditSelSess] = useState(null);
-  const [editEntryVals, setEditEntryVals] = useState({});
-  const [toast, setToast] = useState("");
-  const [shopEdits, setShopEdits] = useState([]);
-  const [newShopName, setNewShopName] = useState("");
-  const [settPrices, setSettPrices] = useState({ kura: "", damiryolu: "" });
-  const [pinOld, setPinOld] = useState("");
-  const [pinNew, setPinNew] = useState("");
-  const [archives, setArchives] = useState([]);
-  const [resetPinBuf, setResetPinBuf] = useState("");
-  const [resetPinErr, setResetPinErr] = useState("");
-  const [resetConfirm, setResetConfirm] = useState(false);
-  const [editCollected, setEditCollected] = useState({});
-  const [expView, setExpView] = useState("list");
-  const [expVals, setExpVals] = useState({ benzin: "", moyka: "", baxim: "", diger: "", digerDesc: "" });
-  const [editDebtShop, setEditDebtShop] = useState(null);
-  const [editDebtVal, setEditDebtVal] = useState("");
-  const [confirmDeleteShop, setConfirmDeleteShop] = useState(null);
-
+const {
+  db_data, loading, tab, setTab, view, setView,
+  selShop, setSelShop, selSess, setSelSess,
+  entryVals, collectedInput, setCollectedInput,
+  ownerUnlocked, setOwnerUnlocked, ownerTab, setOwnerTab,
+  pinBuf, pinErr, pinKey,
+  dashPeriod, setDashPeriod, repPeriod, setRepPeriod,
+  editDate, setEditDate, editView, setEditView,
+  editSelShop, editSelSess,
+  editEntryVals, adjEdit,
+  toast, shopEdits, setShopEdits,
+  newShopName, setNewShopName,
+  settPrices, setSettPrices,
+  pinOld, setPinOld, pinNew, setPinNew,
+  archives, resetPinBuf, setResetPinBuf,
+  resetPinErr, setResetPinErr,
+  resetConfirm, setResetConfirm,
+  editCollected, setEditCollected,
+  expView, setExpView, expVals, setExpVals,
+  editDebtShop, setEditDebtShop,
+  editDebtVal, setEditDebtVal,
+  confirmDeleteShop, setConfirmDeleteShop,
+  shopKura, shopRail, upd, toast$,
+  openDeliveryEntry, adjDelivery, saveDeliveryEntry,
+  saveDebtCollection, openEditEntry, saveEditEntry,
+  saveEditDebt, saveEditCollected, saveExpense, deleteExpense,
+  resetAllData, calcStats, calcExpenses,
+  saveShops, addShop, removeShop, confirmRemoveShop,
+  savePrices, changePin,
+} = useAppData();
   useEffect(() => {
     const ref = doc(db, "app", "data");
     const unsub = onSnapshot(ref, (snap) => {
