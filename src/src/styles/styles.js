@@ -17,4 +17,15 @@ export const c = {
   counter: { display: "flex", alignItems: "center", gap: 8 },
   cntBtn: { width: 36, height: 36, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg2)", color: "var(--text)", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   primaryBtn: { width: "100%", padding: 13, fontSize: 15, fontWeight: 600, background: "var(--text)", color: "var(--bg)", border: "none", borderRadius: 12, cursor: "pointer" },
-  outlineBtn: { width: "100%", padding: 11, fontSize: 14, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "none", color
+  outlineBtn: { width: "100%", padding: 11, fontSize: 14, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "none", color: "var(--text)", cursor: "pointer" },
+  metric: { background: "var(--bg2)", borderRadius: 10, padding: "12px 14px" },
+  metricGreen: { background: "var(--collected-bg)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--collected-border)" },
+  listCard: { background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: "1rem" },
+  listRow: last => ({ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", borderBottom: last ? "none" : "1px solid var(--border)" }),
+  periodBtn: a => ({ flex: 1, padding: "7px 4px", fontSize: 12, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer", borderColor: a ? "transparent" : "var(--border2)" }),
+  settRow: last => ({ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", borderBottom: last ? "none" : "1px solid var(--border)" }),
+  pinDot: filled => ({ width: 14, height: 14, borderRadius: "50%", border: "1px solid var(--border2)", background: filled ? "var(--text)" : "var(--bg2)" }),
+  pinKey: { padding: 14, fontSize: 20, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 12, background: "var(--bg)", color: "var(--text)", cursor: "pointer", textAlign: "center" },
+  ownerNavBtn: a => ({ flex: "none", padding: "7px 10px", fontSize: 11, border: "1px solid var(--border2)", borderRadius: 8, background: a ? "var(--text)" : "none", color: a ? "var(--bg)" : "var(--text2)", cursor: "pointer" }),
+  tag: { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, padding: "2px 7px", borderRadius: 10, background: "var(--success-bg)", color: "var(--success-text)", fontWeight: 600 },
+};
