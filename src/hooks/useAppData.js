@@ -283,7 +283,7 @@ export function useAppData() {
     pinBuf, pinErr, pinKey,
     dashPeriod, setDashPeriod, repPeriod, setRepPeriod,
     editDate, setEditDate, editView, setEditView,
-    editSelShop, editSelSess,
+    editSelShop, setEditSelShop, editSelSess, setEditSelSess,
     editEntryVals, adjEdit,
     toast, shopEdits, setShopEdits,
     newShopName, setNewShopName,
