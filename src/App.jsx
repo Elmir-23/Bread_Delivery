@@ -2,12 +2,9 @@ import { useState, useEffect } from "react";
 import { SESS, SESS_WITH_DEBT, EXP_CATS, DEFAULT_DB } from "./constants";
 import { db } from "./firebase";
 import { doc, onSnapshot, setDoc, collection, getDocs, addDoc } from "firebase/firestore";
+import { todayStr, addDays, fmtDate, fmtDateShort } from "./utils/dates";
 
 
-function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-function addDays(s, n) { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
-function fmtDate(s) { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
-function fmtDateShort(s) { const d = new Date(s + "T00:00:00"); return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); }
 
 const c = {
   wrap: { maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: "var(--bg)", fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: 15, color: "var(--text)" },
