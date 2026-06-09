@@ -138,22 +138,14 @@ export default function App() {
   useEffect(() => {
     const ref = doc(db, "app", "data");
     const unsub = onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        setDbData(snap.data());
-      } else {
-        setDoc(ref, DEFAULT_DB);
-        setDbData(DEFAULT_DB);
-      }
+      if (snap.exists()) { setDbData(snap.data()); }
+      else { setDoc(ref, DEFAULT_DB); setDbData(DEFAULT_DB); }
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
-  const upd = async (newData) => {
-    setDbData(newData);
-    await setDoc(doc(db, "app", "data"), newData);
-  };
-
+  const upd = async (newData) => { setDbData(newData); await setDoc(doc(db, "app", "data"), newData); };
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
   const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
@@ -233,14 +225,7 @@ export default function App() {
       const built = buildCSV(data);
       if (!built) return;
       const { csv, rowCount, startDate, endDate } = built;
-      await addDoc(collection(db, "archives"), {
-        weekMonday: thisMonday,
-        archivedOn: todayStr(),
-        rowCount,
-        startDate,
-        endDate,
-        csv,
-      });
+      await addDoc(collection(db, "archives"), { weekMonday: thisMonday, archivedOn: todayStr(), rowCount, startDate, endDate, csv });
       toast$("📦 Həftəlik arxiv saxlanıldı ✓");
     } catch(e) { console.error("Archive failed:", e); }
   };
@@ -278,7 +263,6 @@ export default function App() {
     const nd = { ...db_data, deliveries: { ...db_data.deliveries, [TODAY]: { ...(db_data.deliveries?.[TODAY] || {}), [selShop]: { ...(db_data.deliveries?.[TODAY]?.[selShop] || {}) } } } };
     const obj = { given: { ...entryVals.given } };
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
-
     const prev = nd.deliveries[TODAY][selShop][selSess];
     const prevVal = prev ? (prev.given?.kura || 0) * shopKura(selShop) + (prev.given?.damiryolu || 0) * shopRail(selShop) : 0;
     const newVal = (entryVals.given?.kura || 0) * shopKura(selShop) + (entryVals.given?.damiryolu || 0) * shopRail(selShop);
@@ -286,23 +270,17 @@ export default function App() {
     const debts = { ...(nd.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
     nd.debts = debts;
-
     await upd(nd); toast$("Saxlanıldı ✓"); setTimeout(() => setView("session"), 300);
   };
 
   const saveDebtCollection = async () => {
     const collected = parseFloat(collectedInput) || 0;
     if (collected <= 0) { toast$("Məbləğ daxil edin"); return; }
-
-    // Update running debt balance
     const debts = { ...(db_data.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - collected;
-
-    // Record the payment with date for period-based reporting
     const debtPayments = { ...(db_data.debtPayments || {}) };
     if (!debtPayments[TODAY]) debtPayments[TODAY] = {};
     debtPayments[TODAY][selShop] = (debtPayments[TODAY][selShop] || 0) + collected;
-
     await upd({ ...db_data, debts, debtPayments });
     setCollectedInput("");
     toast$("Borc yeniləndi ✓");
@@ -326,15 +304,13 @@ export default function App() {
     await upd(nd); toast$("Saxlanıldı ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
 
-  // ── calcStats: returns delivery stats + collected money for the period ──
   const saveEditDebt = async (shopIdx, newVal) => {
     const amount = parseFloat(newVal);
     if (isNaN(amount)) { toast$("Düzgün məbləğ daxil edin"); return; }
     const debts = { ...(db_data.debts || {}) };
     debts[shopIdx] = amount;
     await upd({ ...db_data, debts });
-    setEditDebtShop(null);
-    setEditDebtVal("");
+    setEditDebtShop(null); setEditDebtVal("");
     toast$("Borc yeniləndi ✓");
   };
 
@@ -343,14 +319,7 @@ export default function App() {
     const entries = [];
     EXP_CATS.forEach(cat => {
       const amt = parseFloat(expVals[cat.id]);
-      if (!isNaN(amt) && amt > 0) {
-        entries.push({
-          cat: cat.id,
-          amount: amt,
-          desc: cat.id === "diger" ? (expVals.digerDesc || "") : cat.label,
-          time: Date.now(),
-        });
-      }
+      if (!isNaN(amt) && amt > 0) entries.push({ cat: cat.id, amount: amt, desc: cat.id === "diger" ? (expVals.digerDesc || "") : cat.label, time: Date.now() });
     });
     if (!entries.length) { toast$("Məbləğ daxil edin"); return; }
     const expenses = { ...(db_data.expenses || {}) };
@@ -378,11 +347,7 @@ export default function App() {
     debts[shopIdx] = (debts[shopIdx] || 0) - diff;
     const debtPayments = { ...(db_data.debtPayments || {}) };
     if (!debtPayments[date]) debtPayments[date] = {};
-    if (amount === 0) {
-      delete debtPayments[date][shopIdx];
-    } else {
-      debtPayments[date][shopIdx] = amount;
-    }
+    if (amount === 0) { delete debtPayments[date][shopIdx]; } else { debtPayments[date][shopIdx] = amount; }
     await upd({ ...db_data, debts, debtPayments });
     toast$("Yığılan yeniləndi ✓");
   };
@@ -391,26 +356,10 @@ export default function App() {
     const built = buildCSV(db_data);
     if (built) {
       const { csv, rowCount, startDate, endDate } = built;
-      const thisMonday = getThisWeekMonday();
-      await addDoc(collection(db, "archives"), {
-        weekMonday: thisMonday,
-        archivedOn: todayStr(),
-        rowCount,
-        startDate,
-        endDate,
-        csv,
-        note: "Sıfırlamadan əvvəl arxiv",
-      });
+      await addDoc(collection(db, "archives"), { weekMonday: getThisWeekMonday(), archivedOn: todayStr(), rowCount, startDate, endDate, csv, note: "Sıfırlamadan əvvəl arxiv" });
     }
-    await upd({
-      ...db_data,
-      deliveries: {},
-      debtPayments: {},
-      debts: {},
-    });
-    setResetConfirm(false);
-    setResetPinBuf("");
-    setResetPinErr("");
+    await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {} });
+    setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
     await loadArchives();
     toast$("✓ Bütün məlumatlar sıfırlandı");
   };
@@ -423,8 +372,6 @@ export default function App() {
     let totGK = 0, totGR = 0, totLK = 0, totLR = 0, totRev = 0, totCollected = 0;
     const ss = {};
     db_data.shops.forEach((_, i) => ss[i] = { kura: 0, damiryolu: 0, leftK: 0, leftR: 0, rev: 0 });
-
-    // Delivery stats
     Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.entries(shops).forEach(([idx, sess]) => {
@@ -436,101 +383,57 @@ export default function App() {
           if (!ss[i]) ss[i] = { kura: 0, damiryolu: 0, leftK: 0, leftR: 0, rev: 0 };
           ss[i].kura += k; ss[i].damiryolu += r; ss[i].rev += rev;
           totGK += k; totGR += r; totRev += rev;
-          if (sv.id === "morning") {
-            const lk = d.leftover?.kura || 0, lr = d.leftover?.damiryolu || 0;
-            ss[i].leftK += lk; ss[i].leftR += lr; totLK += lk; totLR += lr;
-          }
+          if (sv.id === "morning") { const lk = d.leftover?.kura || 0, lr = d.leftover?.damiryolu || 0; ss[i].leftK += lk; ss[i].leftR += lr; totLK += lk; totLR += lr; }
         });
       });
     });
-
-    // Collected money for the period
     Object.entries(db_data.debtPayments || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.values(shops).forEach(amount => { totCollected += amount; });
     });
-
     return { totGK, totGR, totLK, totLR, totRev, totCollected, ss };
   };
 
-  // ── CSV Export with Debt + Collected Money columns ──
   const exportCSV = () => {
     const t = todayStr(); let s = t;
     if (repPeriod === "week") s = addDays(t, -6);
     if (repPeriod === "month") s = addDays(t, -29);
-
-    // Build initial debt balance per shop at the START of the period
-    // = current debt minus all deliveries in period + all collections in period
     const runningDebt = {};
     db_data.shops.forEach((_, i) => { runningDebt[i] = db_data.debts?.[i] || 0; });
-
-    // Subtract deliveries that happened IN the period (to get balance before period)
     Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
       Object.entries(shops).forEach(([idx, sess]) => {
         const i = parseInt(idx);
-        SESS.forEach(sv => {
-          const d = sess[sv.id]; if (!d) return;
-          const k = d.given?.kura || 0, r = d.given?.damiryolu || 0;
-          runningDebt[i] -= k * shopKura(i) + r * shopRail(i);
-        });
+        SESS.forEach(sv => { const d = sess[sv.id]; if (!d) return; const k = d.given?.kura || 0, r = d.given?.damiryolu || 0; runningDebt[i] -= k * shopKura(i) + r * shopRail(i); });
       });
     });
-
-    // Add back collections that happened IN the period
     Object.entries(db_data.debtPayments || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
-      Object.entries(shops).forEach(([idx, amount]) => {
-        runningDebt[parseInt(idx)] += amount;
-      });
+      Object.entries(shops).forEach(([idx, amount]) => { runningDebt[parseInt(idx)] += amount; });
     });
-
-    // Now runningDebt[i] = balance at start of period. Build CSV row by row.
     let csv = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
-
-    // Group deliveries by date then shop for ordering
     const sortedDates = Object.keys(db_data.deliveries || {}).filter(d => d >= s && d <= t).sort();
-
     sortedDates.forEach(date => {
       const shops = db_data.deliveries[date];
-      // Get collected payments for this date per shop
       const dayPayments = db_data.debtPayments?.[date] || {};
-
       Object.entries(shops).forEach(([idx, sess]) => {
         const i = parseInt(idx);
         const shop = db_data.shops[i]?.name || ("Shop " + idx);
-
-        // Find which sessions have data, to know which is the last
-        const sessWithData = SESS.filter(sv => {
-          const d = sess[sv.id];
-          return d && (d.given?.kura > 0 || d.given?.damiryolu > 0);
-        });
+        const sessWithData = SESS.filter(sv => { const d = sess[sv.id]; return d && (d.given?.kura > 0 || d.given?.damiryolu > 0); });
         const lastSessId = sessWithData.length ? sessWithData[sessWithData.length - 1].id : null;
         const collectedToday = dayPayments[i] || dayPayments[String(i)] || 0;
-
         SESS.forEach(sv => {
           const d = sess[sv.id]; if (!d) return;
           const k = d.given?.kura || 0, r = d.given?.damiryolu || 0; if (!k && !r) return;
           const lk = d.leftover?.kura || 0, lr = d.leftover?.damiryolu || 0;
           const rev = k * shopKura(i) + r * shopRail(i);
-
-          // Advance running debt: add this delivery's revenue
           runningDebt[i] += rev;
-
-          // Collected money: only on last session row for this shop/day
-          const isLastSess = sv.id === lastSessId;
           let collected = 0;
-          if (isLastSess && collectedToday > 0) {
-            collected = collectedToday;
-            runningDebt[i] -= collected;
-          }
-
-          const debtAfter = runningDebt[i];
-          csv += `${date},${shop},${sv.label},${k},${r},${shopKura(i).toFixed(2)},${shopRail(i).toFixed(2)},${rev.toFixed(2)},${lk},${lr},${debtAfter.toFixed(2)},${collected > 0 ? collected.toFixed(2) : ""}\n`;
+          if (sv.id === lastSessId && collectedToday > 0) { collected = collectedToday; runningDebt[i] -= collected; }
+          csv += `${date},${shop},${sv.label},${k},${r},${shopKura(i).toFixed(2)},${shopRail(i).toFixed(2)},${rev.toFixed(2)},${lk},${lr},${runningDebt[i].toFixed(2)},${collected > 0 ? collected.toFixed(2) : ""}\n`;
         });
       });
     });
-
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = `bread-delivery-${repPeriod}.csv`; a.click();
@@ -541,6 +444,7 @@ export default function App() {
     const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, damiryolu: s.railStr !== "" ? parseFloat(s.railStr) : null }));
     await upd({ ...db_data, shops }); toast$("Mağazalar saxlanıldı ✓");
   };
+
   const addShop = () => {
     if (!newShopName.trim()) return;
     const shops = [...db_data.shops, { name: newShopName.trim(), kura: null, damiryolu: null }];
@@ -548,7 +452,8 @@ export default function App() {
     setNewShopName("");
     upd({ ...db_data, shops });
   };
-const removeShop = (i) => {
+
+  const removeShop = (i) => {
     if (db_data.shops.length <= 1) return;
     setConfirmDeleteShop(i);
   };
@@ -560,7 +465,9 @@ const removeShop = (i) => {
     upd({ ...db_data, shops });
     setConfirmDeleteShop(null);
   };
+
   const savePrices = async () => { await upd({ ...db_data, prices: { kura: parseFloat(settPrices.kura) || 0, damiryolu: parseFloat(settPrices.damiryolu) || 0 } }); toast$("Qiymətlər saxlanıldı ✓"); };
+
   const changePin = async () => {
     if (pinOld !== db_data.pin) { toast$("Cari PIN yanlışdır"); return; }
     if (pinNew.length !== 4 || !/^\d+$/.test(pinNew)) { toast$("PIN 4 rəqəm olmalıdır"); return; }
@@ -674,27 +581,17 @@ const removeShop = (i) => {
         <div style={c.pad}>
           <div style={{ ...c.block, textAlign: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 6 }}>{isCredit ? "Kredit (artıq ödənildi)" : "Cari borc"}</div>
-            <div style={{ fontSize: 36, fontWeight: 700, color: isCredit ? "var(--success-text)" : currentDebt > 0 ? "#dc2626" : "var(--text)" }}>
-              {Math.abs(currentDebt).toFixed(2)} ₼
-            </div>
+            <div style={{ fontSize: 36, fontWeight: 700, color: isCredit ? "var(--success-text)" : currentDebt > 0 ? "#dc2626" : "var(--text)" }}>{Math.abs(currentDebt).toFixed(2)} ₼</div>
           </div>
           <div style={c.block}>
             <div style={c.blockTitle}>Amount collected now</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input
-                type="number" min={0} step={0.01}
-                value={collectedInput}
-                onChange={e => setCollectedInput(e.target.value)}
-                placeholder="0.00"
-                style={{ flex: 1, padding: "10px 12px", fontSize: 20, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-              />
+              <input type="number" min={0} step={0.01} value={collectedInput} onChange={e => setCollectedInput(e.target.value)} placeholder="0.00" style={{ flex: 1, padding: "10px 12px", fontSize: 20, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
               <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
             </div>
             {collectedInput !== "" && (
               <div style={{ fontSize: 13, color: "var(--text2)", marginTop: 8, textAlign: "right" }}>
-                New balance: <strong style={{ color: newBalance < 0 ? "var(--success-text)" : newBalance > 0 ? "#dc2626" : "var(--text)" }}>
-                  {newBalance.toFixed(2)} ₼
-                </strong>
+                New balance: <strong style={{ color: newBalance < 0 ? "var(--success-text)" : newBalance > 0 ? "#dc2626" : "var(--text)" }}>{newBalance.toFixed(2)} ₼</strong>
               </div>
             )}
           </div>
@@ -722,13 +619,7 @@ const removeShop = (i) => {
                 <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
                 <div style={c.counter}>
                   <button style={c.cntBtn} onClick={() => adjFn("given", t, -1)}>−</button>
-                  <input
-                    type="number" min={0}
-                    value={vals.given?.[t] || ""}
-                    placeholder="0"
-                    onChange={e => { const v = parseInt(e.target.value); adjFn("given", t, (isNaN(v) ? 0 : v) - (vals.given?.[t] || 0)); }}
-                    style={inputStyle}
-                  />
+                  <input type="number" min={0} value={vals.given?.[t] || ""} placeholder="0" onChange={e => { const v = parseInt(e.target.value); adjFn("given", t, (isNaN(v) ? 0 : v) - (vals.given?.[t] || 0)); }} style={inputStyle} />
                   <button style={c.cntBtn} onClick={() => adjFn("given", t, 1)}>+</button>
                 </div>
               </div>
@@ -742,13 +633,7 @@ const removeShop = (i) => {
                   <span style={{ fontSize: 14, fontWeight: 500 }}>{lbl}</span>
                   <div style={c.counter}>
                     <button style={c.cntBtn} onClick={() => adjFn("leftover", t, -1)}>−</button>
-                    <input
-                      type="number" min={0}
-                      value={vals.leftover?.[t] || ""}
-                      placeholder="0"
-                      onChange={e => { const v = parseInt(e.target.value); adjFn("leftover", t, (isNaN(v) ? 0 : v) - (vals.leftover?.[t] || 0)); }}
-                      style={inputStyle}
-                    />
+                    <input type="number" min={0} value={vals.leftover?.[t] || ""} placeholder="0" onChange={e => { const v = parseInt(e.target.value); adjFn("leftover", t, (isNaN(v) ? 0 : v) - (vals.leftover?.[t] || 0)); }} style={inputStyle} />
                     <button style={c.cntBtn} onClick={() => adjFn("leftover", t, 1)}>+</button>
                   </div>
                 </div>
@@ -816,18 +701,10 @@ const removeShop = (i) => {
             <div style={{ ...c.block, marginTop: 10 }}>
               <div style={c.blockTitle}>💰 Yığılan məbləği düzəlt</div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="number" min={0} step={0.01}
-                  value={collVal}
-                  onChange={e => setEditCollected(prev => ({ ...prev, [collKey]: e.target.value }))}
-                  placeholder="0.00"
-                  style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-                />
+                <input type="number" min={0} step={0.01} value={collVal} onChange={e => setEditCollected(prev => ({ ...prev, [collKey]: e.target.value }))} placeholder="0.00" style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
                 <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
               </div>
-              {existingCollected > 0 && (
-                <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 6 }}>Cari: {existingCollected.toFixed(2)} ₼</div>
-              )}
+              {existingCollected > 0 && <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 6 }}>Cari: {existingCollected.toFixed(2)} ₼</div>}
               <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditCollected(editSelShop, editDate, collVal)}>Saxla</button>
             </div>
             <div style={{ ...c.block, marginTop: 10 }}>
@@ -836,13 +713,7 @@ const removeShop = (i) => {
                 Cari borc: <strong style={{ color: (db_data.debts?.[editSelShop] || 0) > 0 ? "#dc2626" : "var(--success-text)" }}>{(db_data.debts?.[editSelShop] || 0).toFixed(2)} ₼</strong>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <input
-                  type="number" step={0.01}
-                  value={editDebtShop === editSelShop ? editDebtVal : ""}
-                  onChange={e => { setEditDebtShop(editSelShop); setEditDebtVal(e.target.value); }}
-                  placeholder={(db_data.debts?.[editSelShop] || 0).toFixed(2)}
-                  style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-                />
+                <input type="number" step={0.01} value={editDebtShop === editSelShop ? editDebtVal : ""} onChange={e => { setEditDebtShop(editSelShop); setEditDebtVal(e.target.value); }} placeholder={(db_data.debts?.[editSelShop] || 0).toFixed(2)} style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
                 <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
               </div>
               <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditDebt(editSelShop, editDebtVal)}>Saxla</button>
@@ -856,66 +727,41 @@ const removeShop = (i) => {
     }
   };
 
-  // ── Dashboard ──
   const renderDashboard = () => {
     const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
     const revs = db_data.shops.map((s, i) => ({ name: s.name, rev: ss[i]?.rev || 0 })).filter(x => x.rev > 0).sort((a, b) => b.rev - a.rev);
     const maxR = revs.length ? revs[0].rev : 1;
-
     return (
       <div style={c.pad}>
-        {/* Period selector */}
         <div style={{ display: "flex", gap: 6, marginBottom: "1rem" }}>
           {[["day","Bu gün"],["week","7 gün"],["month","30 gün"]].map(([p,l]) => (
             <button key={p} style={c.periodBtn(dashPeriod===p)} onClick={() => setDashPeriod(p)}>{l}</button>
           ))}
         </div>
-
-        {/* Revenue — full width */}
         <div style={{ ...c.metric, marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Gəlir</div>
           <div style={{ fontSize: 24, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
         </div>
-
-        {/* Total Given with Kura / Damiryolu sub-rows */}
         <div style={{ ...c.metric, marginBottom: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 11, color: "var(--text2)" }}>Ümumi verilən</div>
             <div style={{ fontSize: 20, fontWeight: 600 }}>{totGK + totGR}</div>
           </div>
-          <div className="sub-metric">
-            <span style={{ fontSize: 12, color: "var(--text2)" }}>Kura</span>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>{totGK}</span>
-          </div>
-          <div className="sub-metric">
-            <span style={{ fontSize: 12, color: "var(--text2)" }}>Damiryolu</span>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>{totGR}</span>
-          </div>
+          <div className="sub-metric"><span style={{ fontSize: 12, color: "var(--text2)" }}>Kura</span><span style={{ fontSize: 13, fontWeight: 500 }}>{totGK}</span></div>
+          <div className="sub-metric"><span style={{ fontSize: 12, color: "var(--text2)" }}>Damiryolu</span><span style={{ fontSize: 13, fontWeight: 500 }}>{totGR}</span></div>
         </div>
-
-        {/* Total Leftovers */}
         <div style={{ ...c.metric, marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi qalıq</div>
           <div style={{ fontSize: 20, fontWeight: 600 }}>{totLK + totLR}</div>
         </div>
-
-        {/* Total Debt */}
         <div style={{ ...c.metric, marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-          <div style={{ fontSize: 20, fontWeight: 600, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
-            {totalDebt.toFixed(2)} ₼
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 600, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>{totalDebt.toFixed(2)} ₼</div>
         </div>
-
-        {/* Total Collected — greenish */}
         <div style={{ ...c.metricGreen, marginBottom: 8 }}>
           <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Ümumi yığılan</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--collected-text)" }}>
-            {totCollected.toFixed(2)} ₼
-          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--collected-text)" }}>{totCollected.toFixed(2)} ₼</div>
         </div>
-
-        {/* Mashin Xercleri */}
         {(() => {
           const { totExp, byCat } = calcExpenses(dashPeriod);
           if (totExp === 0) return null;
@@ -934,21 +780,17 @@ const removeShop = (i) => {
             </div>
           );
         })()}
-
-        {/* Debt by shop */}
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağaza üzrə borc</div>
         <div style={c.listCard}>
           {(() => {
             const rows = db_data.shops.map((s, i) => ({ s, i, debt: db_data.debts?.[i] || 0 })).filter(x => x.debt !== 0);
             if (!rows.length) return <div style={{ padding: "1.5rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>Borc yoxdur.</div>;
-            return rows.map(({ s, i, debt }, ri) => (
+            return rows.map(({ s, i, debt }) => (
               <div key={i} style={{ ...c.listRow(false), flexDirection: "column", alignItems: "stretch", gap: 6 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>
-                      {debt < 0 ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: debt < 0 ? "var(--success-text)" : "#dc2626" }}>{debt < 0 ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : `${debt.toFixed(2)} ₼`}</div>
                     <button onClick={() => { setEditDebtShop(editDebtShop === i ? null : i); setEditDebtVal(debt.toFixed(2)); }} style={{ fontSize: 11, padding: "3px 8px", border: "1px solid var(--border2)", borderRadius: 6, background: "none", color: "var(--text2)", cursor: "pointer" }}>✏️</button>
                   </div>
                 </div>
@@ -963,8 +805,6 @@ const removeShop = (i) => {
             ));
           })()}
         </div>
-
-        {/* Revenue by shop */}
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağaza üzrə gəlir</div>
         {revs.length ? revs.map(x => (
           <div key={x.name} className="bar-row">
@@ -1147,7 +987,6 @@ const removeShop = (i) => {
           ))}
         </div>
         <button style={{ ...c.primaryBtn, marginBottom: "1.25rem" }} onClick={savePrices}>Standart qiymətləri saxla</button>
-
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>PIN-i dəyiş</div>
         <div style={c.listCard}>
           {[["Cari PIN", pinOld, setPinOld],["Yeni PIN", pinNew, setPinNew]].map(([lbl,val,setter],i) => (
@@ -1158,7 +997,6 @@ const removeShop = (i) => {
           ))}
         </div>
         <button style={{ ...c.outlineBtn, marginBottom: "1.5rem" }} onClick={changePin}>PIN-i dəyiş</button>
-
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Arxivlər</div>
         <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 12 }}>Hər həftə giriş etdikdə avtomatik saxlanılır.</div>
         {archives.length === 0 ? (
@@ -1176,7 +1014,6 @@ const removeShop = (i) => {
             ))}
           </div>
         )}
-
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Məlumatları sıfırla</div>
         <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 12 }}>Çatdırılma, borc və ödəniş məlumatları silinəcək. Mağazalar, qiymətlər və PIN saxlanılacaq. Sıfırlamadan əvvəl arxiv avtomatik yaradılır.</div>
         {!resetConfirm ? (
@@ -1204,14 +1041,12 @@ const removeShop = (i) => {
     const TODAY = todayStr();
     const todayDeliveries = db_data.deliveries?.[TODAY] || {};
     const todayPayments = db_data.debtPayments?.[TODAY] || {};
-
     const shopRows = [];
     Object.entries(todayDeliveries).forEach(([idx, sess]) => {
       const i = parseInt(idx);
       const shop = db_data.shops[i];
       if (!shop) return;
-      let totalK = 0, totalD = 0;
-      let sehK = 0, sehD = 0, gunK = 0, gunD = 0, axsK = 0, axsD = 0;
+      let totalK = 0, totalD = 0, sehK = 0, sehD = 0, gunK = 0, gunD = 0, axsK = 0, axsD = 0;
       SESS.forEach(sv => {
         const d = sess[sv.id]; if (!d) return;
         const k = d.given?.kura || 0, dd = d.given?.damiryolu || 0;
@@ -1224,27 +1059,20 @@ const removeShop = (i) => {
       const todayDebt = totalK * (shop.kura ?? db_data.prices.kura) + totalD * (shop.damiryolu ?? db_data.prices.damiryolu);
       const totalDebt = db_data.debts?.[i] || 0;
       const yigilan = todayPayments[i] || todayPayments[String(i)] || 0;
-      const qalanBorc = totalDebt;
-      shopRows.push({ i, name: shop.name, totalK, totalD, sehK, sehD, gunK, gunD, axsK, axsD, todayDebt, totalDebt, yigilan, qalanBorc });
+      shopRows.push({ i, name: shop.name, totalK, totalD, sehK, sehD, gunK, gunD, axsK, axsD, todayDebt, totalDebt, yigilan, qalanBorc: totalDebt });
     });
-
     const totK = shopRows.reduce((a, r) => a + r.totalK, 0);
     const totD = shopRows.reduce((a, r) => a + r.totalD, 0);
-    const totSehK = shopRows.reduce((a, r) => a + r.sehK, 0);
-    const totSehD = shopRows.reduce((a, r) => a + r.sehD, 0);
-    const totGunK = shopRows.reduce((a, r) => a + r.gunK, 0);
-    const totGunD = shopRows.reduce((a, r) => a + r.gunD, 0);
-    const totAxsK = shopRows.reduce((a, r) => a + r.axsK, 0);
-    const totAxsD = shopRows.reduce((a, r) => a + r.axsD, 0);
+    const totSehK = shopRows.reduce((a, r) => a + r.sehK, 0), totSehD = shopRows.reduce((a, r) => a + r.sehD, 0);
+    const totGunK = shopRows.reduce((a, r) => a + r.gunK, 0), totGunD = shopRows.reduce((a, r) => a + r.gunD, 0);
+    const totAxsK = shopRows.reduce((a, r) => a + r.axsK, 0), totAxsD = shopRows.reduce((a, r) => a + r.axsD, 0);
     const totTodayDebt = shopRows.reduce((a, r) => a + r.todayDebt, 0);
     const totUmumi = shopRows.reduce((a, r) => a + r.totalDebt, 0);
     const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
     const totQalan = shopRows.reduce((a, r) => a + r.qalanBorc, 0);
-
     const thStyle = (center) => ({ padding: "5px 4px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: center ? "center" : "left", background: "var(--bg2)", border: "1px solid var(--border)", whiteSpace: "nowrap" });
     const tdStyle = (color, bg) => ({ padding: "5px 4px", fontSize: 11, textAlign: "center", border: "1px solid var(--border)", color: color || "var(--text)", background: bg || "transparent", whiteSpace: "nowrap" });
     const tdLStyle = (bold, bg) => ({ padding: "5px 6px", fontSize: 11, textAlign: "left", border: "1px solid var(--border)", color: "var(--text)", background: bg || "transparent", fontWeight: bold ? 700 : 400, whiteSpace: "nowrap" });
-
     return (
       <div style={{ padding: "1rem 0" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 10, padding: "0 1rem" }}>{fmtDate(TODAY)}</div>
@@ -1331,6 +1159,7 @@ const removeShop = (i) => {
       <style>{CSS}</style>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" />
       {toast && <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", padding: "10px 22px", borderRadius: 30, fontSize: 14, zIndex: 999, whiteSpace: "nowrap" }}>{toast}</div>}
+
       {confirmDeleteShop !== null && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
           <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 320, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
@@ -1345,22 +1174,7 @@ const removeShop = (i) => {
           </div>
         </div>
       )}
-      <div style={c.nav}>
-  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-    <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 320, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
-      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Mağazanı sil</div>
-      <div style={{ fontSize: 14, color: "var(--text2)", marginBottom: "1.5rem" }}>
-        <strong style={{ color: "var(--text)" }}>{db_data.shops[confirmDeleteShop]?.name}</strong> mağazasını silmək istədiyinizdən əminsiniz?
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => setConfirmDeleteShop(null)} style={{ flex: 1, padding: 11, fontSize: 14, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 10, background: "none", color: "var(--text)", cursor: "pointer" }}>Yox</button>
-        <button onClick={confirmRemoveShop} style={{ flex: 1, padding: 11, fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "#dc2626", color: "#fff", cursor: "pointer" }}>Hə, sil</button>
-      </div>
-    </div>
-  </div>
-)}
-       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" />
-      {toast && <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", padding: "10px 22px", borderRadius: 30, fontSize: 14, zIndex: 999, whiteSpace: "nowrap" }}>{toast}</div>}
+
       <div style={c.nav}>
         {[["delivery","🚚","Çatdırılma"],["gundelik","📋","Gündəlik"],["expenses","🚗","Xərclər"],["owner","🔐","Sahibkar"]].map(([key,icon,lbl]) => (
           <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") setView("shops"); if (key==="expenses") setExpView("list"); }}>
