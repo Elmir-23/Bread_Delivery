@@ -1265,8 +1265,8 @@ export default function App() {
                     <tr key={r.i} style={{ background: ri % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                       <td style={tdLStyle(true)}>{r.name}</td>
                       <td style={tdStyle()}>K{r.totalK} D{r.totalD} T{r.totalK+r.totalD}</td>
-                      <td style={tdStyle("#dc2626")}>{r.todayDebt.toFixed(1)}</td>
                       <td style={tdStyle("#dc2626")}>{r.totalDebt.toFixed(1)}</td>
+                      <td style={tdStyle("#dc2626")}>{r.todayDebt.toFixed(1)}</td>
                       <td style={tdStyle("var(--success-text)")}>{r.yigilan > 0 ? r.yigilan.toFixed(1) : "—"}</td>
                       <td style={tdStyle(r.qalanBorc > 0 ? "#dc2626" : "var(--success-text)")}>{r.qalanBorc.toFixed(1)}</td>
                     </tr>
@@ -1284,8 +1284,8 @@ export default function App() {
                 <tr style={{ background: "var(--bg2)", fontWeight: 700, borderTop: "2px solid var(--border)" }}>
                   <td style={tdLStyle(true, "var(--bg2)")}>📊 Cəmi</td>
                   <td style={{ ...tdStyle(), fontWeight: 700 }}>K{totK} D{totD} T{totK+totD}</td>
-                  <td style={{ ...tdStyle("#dc2626"), fontWeight: 700 }}>{totTodayDebt.toFixed(1)}</td>
                   <td style={{ ...tdStyle("#dc2626"), fontWeight: 700 }}>{totUmumi.toFixed(1)}</td>
+                  <td style={{ ...tdStyle("#dc2626"), fontWeight: 700 }}>{totTodayDebt.toFixed(1)}</td>
                   <td style={{ ...tdStyle("var(--success-text)"), fontWeight: 700 }}>{totYigilan > 0 ? totYigilan.toFixed(1) : "—"}</td>
                   <td style={{ ...tdStyle(totQalan > 0 ? "#dc2626" : "var(--success-text)"), fontWeight: 700 }}>{totQalan.toFixed(1)}</td>
                 </tr>
