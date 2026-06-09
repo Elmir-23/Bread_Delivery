@@ -36,13 +36,16 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
             }
             const d = sd[s.id] || {};
             const has = d.given && (d.given.kura > 0 || d.given.damiryolu > 0);
-            let sub = s.sub;
-            if (has) { sub = `Given: K ${d.given.kura} · R ${d.given.damiryolu}`; if (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.damiryolu > 0)) sub += ` | Left: K${d.leftover.kura} R${d.leftover.damiryolu}`; }
-            return (
-              <button key={s.id} style={c.sessBtn(has)} onClick={() => openDeliveryEntry(selShop, s.id)}>
-                <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
-                <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
-              </button>
+            const kPrice = db_data.shops[selShop]?.kura ?? db_data.prices?.kura ?? 0.55;
+const rPrice = db_data.shops[selShop]?.damiryolu ?? db_data.prices?.damiryolu ?? 0.65;
+let sub = has
+  ? `Verildi: K ${d.given.kura} · D ${d.given.damiryolu}` + (s.id === "morning" && d.leftover && (d.leftover.kura > 0 || d.leftover.damiryolu > 0) ? ` | Qalıq: K${d.leftover.kura} D${d.leftover.damiryolu}` : "")
+  : `Kura ${kPrice.toFixed(2)}₼ · Damiryolu ${rPrice.toFixed(2)}₼`;
+return (
+  <button key={s.id} style={c.sessBtn(has)} onClick={() => openDeliveryEntry(selShop, s.id)}>
+    <div><div style={{ fontSize: 15, fontWeight: 500, color: has ? "var(--success-text)" : "var(--text)" }}>{s.icon} {s.label}</div><div style={{ fontSize: 12, color: has ? "var(--success-text)" : "var(--text2)", marginTop: 2 }}>{sub}</div></div>
+    <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
+  </button>
             );
           })}
         </div>
