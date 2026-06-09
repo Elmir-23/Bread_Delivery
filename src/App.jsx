@@ -1217,7 +1217,7 @@ export default function App() {
       const todayDebt = totalK * (shop.kura ?? db_data.prices.kura) + totalD * (shop.damiryolu ?? db_data.prices.damiryolu);
       const totalDebt = db_data.debts?.[i] || 0;
       const yigilan = todayPayments[i] || todayPayments[String(i)] || 0;
-      const qalanBorc = totalDebt - yigilan;
+      const qalanBorc = totalDebt;
       shopRows.push({ i, name: shop.name, totalK, totalD, sehK, sehD, gunK, gunD, axsK, axsD, todayDebt, totalDebt, yigilan, qalanBorc });
     });
 
