@@ -547,8 +547,10 @@ export default function App() {
     setNewShopName("");
     upd({ ...db_data, shops });
   };
-  const removeShop = (i) => {
+const removeShop = (i) => {
     if (db_data.shops.length <= 1) return;
+    const shopName = db_data.shops[i]?.name || "bu mağazanı";
+    if (!window.confirm(`"${shopName}" silmək istədiyinizdən əminsiniz?`)) return;
     const shops = db_data.shops.filter((_, x) => x !== i);
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
     upd({ ...db_data, shops });
