@@ -9,6 +9,8 @@ import ShopsScreen from "./components/delivery/ShopsScreen";
 import SessionScreen from "./components/delivery/SessionScreen";
 import EntryForm from "./components/delivery/EntryForm";
 import DebtScreen from "./components/delivery/DebtScreen";
+import Expenses from "./components/Expenses";
+import Gundelik from "./components/Gundelik";
 
 export default function App() {
   const {
@@ -224,38 +226,7 @@ export default function App() {
     );
   };
 
-  const renderExpenses = () => {
-    const TODAY = todayStr();
-    const todayExps = db_data.expenses?.[TODAY] || [];
-    if (expView === "add") {
-      return (
-        <div>
-          <div style={c.topbar}>
-            <button style={c.backBtn} onClick={() => setExpView("list")}>‹</button>
-            <div><div style={{ fontSize: 16, fontWeight: 500 }}>🚗 Maşın xərcləri</div><div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div></div>
-          </div>
-          <div style={c.pad}>
-            <div style={c.block}>
-              {EXP_CATS.map(cat => (
-                <div key={cat.id}>
-                  <div style={{ ...c.breadRow, marginBottom: cat.id === "diger" ? 6 : 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{cat.icon} {cat.label}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input type="number" min={0} step={0.01} value={expVals[cat.id]} onChange={e => setExpVals(p => ({ ...p, [cat.id]: e.target.value }))} placeholder="0.00" style={{ width: 80, padding: "7px 8px", textAlign: "right", fontSize: 14, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)" }} />
-                      <span style={{ fontSize: 13, color: "var(--text2)" }}>₼</span>
-                    </div>
-                  </div>
-                  {cat.id === "diger" && (
-                    <input type="text" value={expVals.digerDesc} onChange={e => setExpVals(p => ({ ...p, digerDesc: e.target.value }))} placeholder="Açıqlama…" style={{ width: "100%", padding: "7px 10px", fontSize: 13, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", marginBottom: 10 }} />
-                  )}
-                </div>
-              ))}
-            </div>
-            <button style={c.primaryBtn} onClick={saveExpense}>Saxla</button>
-          </div>
-        </div>
-      );
-    }
+  
     return (
       <div style={c.pad}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
@@ -444,30 +415,7 @@ export default function App() {
     );
   };
 
-  const renderGundelik = () => {
-    const TODAY = todayStr();
-    const todayDeliveries = db_data.deliveries?.[TODAY] || {};
-    const todayPayments = db_data.debtPayments?.[TODAY] || {};
-    const shopRows = [];
-    Object.entries(todayDeliveries).forEach(([idx, sess]) => {
-      const i = parseInt(idx);
-      const shop = db_data.shops[i];
-      if (!shop) return;
-      let totalK = 0, totalD = 0, sehK = 0, sehD = 0, gunK = 0, gunD = 0, axsK = 0, axsD = 0;
-      SESS.forEach(sv => {
-        const d = sess[sv.id]; if (!d) return;
-        const k = d.given?.kura || 0, dd = d.given?.damiryolu || 0;
-        totalK += k; totalD += dd;
-        if (sv.id === "morning") { sehK += k; sehD += dd; }
-        if (sv.id === "afternoon") { gunK += k; gunD += dd; }
-        if (sv.id === "evening") { axsK += k; axsD += dd; }
-      });
-      if (!totalK && !totalD) return;
-      const todayDebt = totalK * (shop.kura ?? db_data.prices.kura) + totalD * (shop.damiryolu ?? db_data.prices.damiryolu);
-      const totalDebt = db_data.debts?.[i] || 0;
-      const yigilan = todayPayments[i] || todayPayments[String(i)] || 0;
-      shopRows.push({ i, name: shop.name, totalK, totalD, sehK, sehD, gunK, gunD, axsK, axsD, todayDebt, totalDebt, yigilan, qalanBorc: totalDebt });
-    });
+
     const totK = shopRows.reduce((a, r) => a + r.totalK, 0);
     const totD = shopRows.reduce((a, r) => a + r.totalD, 0);
     const totSehK = shopRows.reduce((a, r) => a + r.sehK, 0), totSehD = shopRows.reduce((a, r) => a + r.sehD, 0);
@@ -598,8 +546,8 @@ export default function App() {
           {view === "debt" && <DebtScreen db_data={db_data} TODAY={TODAY} selShop={selShop} collectedInput={collectedInput} setCollectedInput={setCollectedInput} saveDebtCollection={saveDebtCollection} setView={setView} />}
         </>
       )}
-      {tab === "gundelik" && renderGundelik()}
-      {tab === "expenses" && renderExpenses()}
+      {tab === "gundelik" && <Gundelik db_data={db_data} />}
+      {tab === "expenses" && <Expenses db_data={db_data} expView={expView} setExpView={setExpView} expVals={expVals} setExpVals={setExpVals} saveExpense={saveExpense} deleteExpense={deleteExpense} />}
       {tab === "owner" && (
         <>
           {!ownerUnlocked && (
