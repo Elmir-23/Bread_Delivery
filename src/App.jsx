@@ -107,7 +107,7 @@ export default function App() {
       setOwnerUnlocked(true); setPinBuf(""); setPinErr("");
       setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
       setSettPrices({ kura: String(db_data.prices.kura), damiryolu: String(db_data.prices.damiryolu) });
-      triggerArchiveIfNeeded(db_data); loadArchives();
+      triggerArchiveIfNeeded(db_data); loadArchives().then(setArchives);
     } else {
       setPinErr("PIN yanlışdır. Yenidən cəhd edin.");
       setTimeout(() => { setPinBuf(""); setPinErr(""); }, 900);
@@ -231,7 +231,7 @@ export default function App() {
     }
     await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {} });
     setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
-    await loadArchives();
+    const list = await loadArchives(); setArchives(list);
     toast$("✓ Bütün məlumatlar sıfırlandı");
   };
 
@@ -781,7 +781,7 @@ export default function App() {
             ? db_data.shops.map((shop, i) => { const v = rss[i]; if (!v || (!v.kura && !v.damiryolu)) return null; return (<div key={i} style={c.listRow(i === db_data.shops.length - 1)}><div><div style={{ fontSize: 14, fontWeight: 600 }}>{shop.name}</div><div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>K: {v.kura} · R: {v.damiryolu} · Left: {v.leftK + v.leftR}</div></div><div style={{ fontSize: 14, fontWeight: 600 }}>{v.rev.toFixed(2)} ₼</div></div>); })
             : <div style={{ padding: "2rem 1rem", textAlign: "center", fontSize: 13, color: "var(--text2)" }}>No data for this period.</div>}
         </div>
-        <button style={c.outlineBtn} onClick={exportCSV}>⬇ CSV / Excel ixrac et</button>
+        <button style={c.outlineBtn} onClick={() => exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDays, toast$)}>⬇ CSV / Excel ixrac et</button>
       </div>
     );
   };
