@@ -94,7 +94,9 @@ export function useAppData() {
     if (selSess === "morning") obj.leftover = { ...entryVals.leftover };
     const prev = nd.deliveries[TODAY][selShop][selSess];
     const prevVal = prev ? (prev.given?.kura || 0) * shopKura(selShop) + (prev.given?.damiryolu || 0) * shopRail(selShop) : 0;
-    const newVal = (entryVals.given?.kura || 0) * shopKura(selShop) + (entryVals.given?.damiryolu || 0) * shopRail(selShop);
+    const netKura = (entryVals.given?.kura || 0) - (entryVals.leftover?.kura || 0);
+    const netRail = (entryVals.given?.damiryolu || 0) - (entryVals.leftover?.damiryolu || 0);
+    const newVal = Math.max(0, netKura) * shopKura(selShop) + Math.max(0, netRail) * shopRail(selShop);
     nd.deliveries[TODAY][selShop][selSess] = obj;
     const debts = { ...(nd.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
