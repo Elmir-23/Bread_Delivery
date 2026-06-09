@@ -1245,7 +1245,7 @@ export default function App() {
       if (!k && !d) return null;
       return (
         <div style={{ display: "flex", padding: "3px 12px 3px 24px", gap: 4 }}>
-          <span style={{ fontSize: 11, color: "var(--text2)", flex: 1.4 }}>{label}</span>
+          <span style={{ fontSize: 11, color: "var(--text2)", flex: 1.4, whiteSpace: "nowrap" }}>{label}</span>
           <span style={{ fontSize: 11, color: "var(--text2)", textAlign: "right", flex: 1 }}>K{k}</span>
           <span style={{ fontSize: 11, color: "var(--text2)", textAlign: "right", flex: 1 }}>D{d}</span>
           <span style={{ fontSize: 11, color: "var(--text2)", textAlign: "right", flex: 1 }}>T{k+d}</span>
