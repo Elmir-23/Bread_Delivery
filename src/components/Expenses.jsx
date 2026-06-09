@@ -2,9 +2,9 @@ import { c } from "../styles/styles";
 import { todayStr, fmtDate, fmtDateShort } from "../utils/dates";
 import { EXP_CATS } from "../constants";
 
-export default function Expenses({ expView, setExpView, expVals, setExpVals, saveExpense, deleteExpense }) {
+export default function Expenses({ db_data, expView, setExpView, expVals, setExpVals, saveExpense, deleteExpense }) {
   const TODAY = todayStr();
-  const todayExps = [];
+  const todayExps = db_data.expenses?.[TODAY] || [];
 
   if (expView === "add") {
     return (
