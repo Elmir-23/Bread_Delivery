@@ -1198,77 +1198,122 @@ export default function App() {
     const todayDeliveries = db_data.deliveries?.[TODAY] || {};
     const todayPayments = db_data.debtPayments?.[TODAY] || {};
 
-    // Build per-shop data
     const shopRows = [];
     Object.entries(todayDeliveries).forEach(([idx, sess]) => {
       const i = parseInt(idx);
       const shop = db_data.shops[i];
       if (!shop) return;
-
       let totalK = 0, totalD = 0;
+      let sehK = 0, sehD = 0, gunK = 0, gunD = 0, axsK = 0, axsD = 0;
       SESS.forEach(sv => {
         const d = sess[sv.id]; if (!d) return;
-        totalK += d.given?.kura || 0;
-        totalD += d.given?.damiryolu || 0;
+        const k = d.given?.kura || 0, dd = d.given?.damiryolu || 0;
+        totalK += k; totalD += dd;
+        if (sv.id === "morning") { sehK += k; sehD += dd; }
+        if (sv.id === "afternoon") { gunK += k; gunD += dd; }
+        if (sv.id === "evening") { axsK += k; axsD += dd; }
       });
       if (!totalK && !totalD) return;
-
       const todayDebt = totalK * (shop.kura ?? db_data.prices.kura) + totalD * (shop.damiryolu ?? db_data.prices.damiryolu);
       const totalDebt = db_data.debts?.[i] || 0;
       const yigilan = todayPayments[i] || todayPayments[String(i)] || 0;
       const qalanBorc = totalDebt - yigilan;
-
-      shopRows.push({ i, name: shop.name, totalK, totalD, todayDebt, totalDebt, yigilan, qalanBorc });
+      shopRows.push({ i, name: shop.name, totalK, totalD, sehK, sehD, gunK, gunD, axsK, axsD, todayDebt, totalDebt, yigilan, qalanBorc });
     });
 
-    // Totals
     const totK = shopRows.reduce((a, r) => a + r.totalK, 0);
     const totD = shopRows.reduce((a, r) => a + r.totalD, 0);
+    const totSehK = shopRows.reduce((a, r) => a + r.sehK, 0);
+    const totSehD = shopRows.reduce((a, r) => a + r.sehD, 0);
+    const totGunK = shopRows.reduce((a, r) => a + r.gunK, 0);
+    const totGunD = shopRows.reduce((a, r) => a + r.gunD, 0);
+    const totAxsK = shopRows.reduce((a, r) => a + r.axsK, 0);
+    const totAxsD = shopRows.reduce((a, r) => a + r.axsD, 0);
     const totTodayDebt = shopRows.reduce((a, r) => a + r.todayDebt, 0);
     const totUmumi = shopRows.reduce((a, r) => a + r.totalDebt, 0);
     const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
     const totQalan = shopRows.reduce((a, r) => a + r.qalanBorc, 0);
 
-    const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 4, marginBottom: 4 };
-    const labelStyle = { fontSize: 12, color: "var(--text2)" };
-    const valStyle = { fontSize: 13, fontWeight: 600 };
+    // Column header style
+    const hdr = { fontSize: 10, color: "var(--text2)", fontWeight: 600, textAlign: "right", flex: 1 };
+    const hdrFirst = { fontSize: 10, color: "var(--text2)", fontWeight: 600, flex: 1.4 };
+    const cell = { fontSize: 12, fontWeight: 600, textAlign: "right", flex: 1 };
+    const cellFirst = { fontSize: 13, fontWeight: 700, flex: 1.4 };
+    const rowBase = { display: "flex", alignItems: "center", padding: "8px 12px", borderBottom: "1px solid var(--border)" };
 
-    const ShopCard = ({ r }) => (
-      <div style={{ ...c.block, marginBottom: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>{r.name}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Verilən çörək</div>
-        <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={valStyle}>{r.totalK + r.totalD}</span></div>
-        <div style={rowStyle}><span style={labelStyle}>Kura</span><span style={valStyle}>{r.totalK}</span></div>
-        <div style={{ ...rowStyle, marginBottom: 10 }}><span style={labelStyle}>Damiryolu</span><span style={valStyle}>{r.totalD}</span></div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Borc</div>
-        <div style={rowStyle}><span style={labelStyle}>Bugün</span><span style={{ ...valStyle, color: "#dc2626" }}>{r.todayDebt.toFixed(2)} ₼</span></div>
-        <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={{ ...valStyle, color: "#dc2626" }}>{r.totalDebt.toFixed(2)} ₼</span></div>
-        <div style={rowStyle}><span style={labelStyle}>Yığılan</span><span style={{ ...valStyle, color: "var(--success-text)" }}>{r.yigilan.toFixed(2)} ₼</span></div>
-        <div style={rowStyle}><span style={labelStyle}>Qalıq borc</span><span style={{ ...valStyle, color: r.qalanBorc > 0 ? "#dc2626" : "var(--success-text)" }}>{r.qalanBorc.toFixed(2)} ₼</span></div>
-      </div>
-    );
+    const SessionRow = ({ label, k, d }) => {
+      if (!k && !d) return null;
+      return (
+        <div style={{ display: "flex", padding: "3px 12px 3px 24px", gap: 4 }}>
+          <span style={{ fontSize: 11, color: "var(--text2)", flex: 1.4 }}>{label}</span>
+          <span style={{ fontSize: 11, color: "var(--text2)", textAlign: "right", flex: 1 }}>K{k}</span>
+          <span style={{ fontSize: 11, color: "var(--text2)", textAlign: "right", flex: 1 }}>D{d}</span>
+          <span style={{ fontSize: 11, color: "var(--text2)", textAlign: "right", flex: 1 }}>T{k+d}</span>
+          <span style={{ flex: 1 }}></span>
+          <span style={{ flex: 1 }}></span>
+          <span style={{ flex: 1 }}></span>
+          <span style={{ flex: 1 }}></span>
+        </div>
+      );
+    };
 
     return (
-      <div style={c.pad}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 12 }}>{fmtDate(TODAY)}</div>
+      <div style={{ padding: "1rem 0" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 10, padding: "0 1rem" }}>{fmtDate(TODAY)}</div>
         {shopRows.length === 0 ? (
-          <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>Bu gün hələ çatdırılma yoxdur.</div>
+          <div style={{ ...c.block, margin: "0 1rem", textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>Bu gün hələ çatdırılma yoxdur.</div>
         ) : (
-          <>
-            {shopRows.map(r => <ShopCard key={r.i} r={r} />)}
-            <div style={{ ...c.block, background: "var(--bg2)", marginTop: 4 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10, borderBottom: "1px solid var(--border)", paddingBottom: 8 }}>📊 Gün üzrə cəmi</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Verilən çörək</div>
-              <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={valStyle}>{totK + totD}</span></div>
-              <div style={rowStyle}><span style={labelStyle}>Kura</span><span style={valStyle}>{totK}</span></div>
-              <div style={{ ...rowStyle, marginBottom: 10 }}><span style={labelStyle}>Damiryolu</span><span style={valStyle}>{totD}</span></div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Borc</div>
-              <div style={rowStyle}><span style={labelStyle}>Bugün</span><span style={{ ...valStyle, color: "#dc2626" }}>{totTodayDebt.toFixed(2)} ₼</span></div>
-              <div style={rowStyle}><span style={labelStyle}>Ümumi</span><span style={{ ...valStyle, color: "#dc2626" }}>{totUmumi.toFixed(2)} ₼</span></div>
-              <div style={rowStyle}><span style={labelStyle}>Yığılan</span><span style={{ ...valStyle, color: "var(--success-text)" }}>{totYigilan.toFixed(2)} ₼</span></div>
-              <div style={rowStyle}><span style={labelStyle}>Qalıq borc</span><span style={{ ...valStyle, color: totQalan > 0 ? "#dc2626" : "var(--success-text)" }}>{totQalan.toFixed(2)} ₼</span></div>
+          <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", margin: "0 1rem" }}>
+            {/* Header */}
+            <div style={{ ...rowBase, background: "var(--bg2)", borderBottom: "1px solid var(--border)" }}>
+              <span style={hdrFirst}>Mağaza</span>
+              <span style={hdr}>Çörək</span>
+              <span style={hdr}>Bugün</span>
+              <span style={hdr}>Ümumi</span>
+              <span style={hdr}>Yığılan</span>
+              <span style={hdr}>Qalıq</span>
             </div>
-          </>
+            {/* Shop rows */}
+            {shopRows.map((r, ri) => (
+              <div key={r.i}>
+                <div style={{ ...rowBase, borderBottom: "none" }}>
+                  <span style={cellFirst}>{r.name}</span>
+                  <span style={cell}>K{r.totalK} D{r.totalD}</span>
+                  <span style={{ ...cell, color: "#dc2626" }}>{r.todayDebt.toFixed(1)}</span>
+                  <span style={{ ...cell, color: "#dc2626" }}>{r.totalDebt.toFixed(1)}</span>
+                  <span style={{ ...cell, color: "var(--success-text)" }}>{r.yigilan > 0 ? r.yigilan.toFixed(1) : "—"}</span>
+                  <span style={{ ...cell, color: r.qalanBorc > 0 ? "#dc2626" : "var(--success-text)" }}>{r.qalanBorc.toFixed(1)}</span>
+                </div>
+                <SessionRow label="🌅 Səhər" k={r.sehK} d={r.sehD} />
+                <SessionRow label="☀️ Günorta" k={r.gunK} d={r.gunD} />
+                <SessionRow label="🌙 Axşam" k={r.axsK} d={r.axsD} />
+                {ri < shopRows.length - 1 && <div style={{ borderBottom: "1px solid var(--border)" }} />}
+              </div>
+            ))}
+            {/* Totals row */}
+            <div style={{ ...rowBase, background: "var(--bg2)", borderTop: "2px solid var(--border)", borderBottom: "none" }}>
+              <span style={{ ...cellFirst, fontSize: 12 }}>📊 Cəmi</span>
+              <span style={{ ...cell, fontSize: 11 }}>K{totK} D{totD}</span>
+              <span style={{ ...cell, fontSize: 11, color: "#dc2626" }}>{totTodayDebt.toFixed(1)}</span>
+              <span style={{ ...cell, fontSize: 11, color: "#dc2626" }}>{totUmumi.toFixed(1)}</span>
+              <span style={{ ...cell, fontSize: 11, color: "var(--success-text)" }}>{totYigilan > 0 ? totYigilan.toFixed(1) : "—"}</span>
+              <span style={{ ...cell, fontSize: 11, color: totQalan > 0 ? "#dc2626" : "var(--success-text)" }}>{totQalan.toFixed(1)}</span>
+            </div>
+            {/* Session totals */}
+            <div style={{ padding: "8px 12px", background: "var(--bg2)", borderTop: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Sessiya üzrə cəmi</div>
+              {[["🌅 Səhər", totSehK, totSehD], ["☀️ Günorta", totGunK, totGunD], ["🌙 Axşam", totAxsK, totAxsD]].map(([lbl, k, d]) => (
+                k || d ? (
+                  <div key={lbl} style={{ display: "flex", gap: 12, fontSize: 12, marginBottom: 4 }}>
+                    <span style={{ color: "var(--text2)", width: 90 }}>{lbl}</span>
+                    <span>K:{k}</span>
+                    <span>D:{d}</span>
+                    <span style={{ fontWeight: 600 }}>T:{k+d}</span>
+                  </div>
+                ) : null
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );
