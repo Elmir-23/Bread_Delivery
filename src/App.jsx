@@ -133,6 +133,7 @@ export default function App() {
   const [expVals, setExpVals] = useState({ benzin: "", moyka: "", baxim: "", diger: "", digerDesc: "" });
   const [editDebtShop, setEditDebtShop] = useState(null);
   const [editDebtVal, setEditDebtVal] = useState("");
+  const [confirmDeleteShop, setConfirmDeleteShop] = useState(null);
 
   useEffect(() => {
     const ref = doc(db, "app", "data");
@@ -549,11 +550,15 @@ export default function App() {
   };
 const removeShop = (i) => {
     if (db_data.shops.length <= 1) return;
-    const shopName = db_data.shops[i]?.name || "bu mağazanı";
-    if (!window.confirm(`"${shopName}" silmək istədiyinizdən əminsiniz?`)) return;
+    setConfirmDeleteShop(i);
+  };
+
+  const confirmRemoveShop = () => {
+    const i = confirmDeleteShop;
     const shops = db_data.shops.filter((_, x) => x !== i);
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
     upd({ ...db_data, shops });
+    setConfirmDeleteShop(null);
   };
   const savePrices = async () => { await upd({ ...db_data, prices: { kura: parseFloat(settPrices.kura) || 0, damiryolu: parseFloat(settPrices.damiryolu) || 0 } }); toast$("Qiymətlər saxlanıldı ✓"); };
   const changePin = async () => {
@@ -1320,7 +1325,20 @@ const removeShop = (i) => {
   };
 
   const ownerTabs = [["dashboard","İdarə paneli"],["reports","Hesabatlar"],["edit","Mağazaları tənzimlə"],["shops-mgr","Mağaza əlavə et"],["parametrler","Parametrlər"]];
-
+{confirmDeleteShop !== null && (
+  <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+    <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 320, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+      <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Mağazanı sil</div>
+      <div style={{ fontSize: 14, color: "var(--text2)", marginBottom: "1.5rem" }}>
+        <strong style={{ color: "var(--text)" }}>{db_data.shops[confirmDeleteShop]?.name}</strong> mağazasını silmək istədiyinizdən əminsiniz?
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => setConfirmDeleteShop(null)} style={{ flex: 1, padding: 11, fontSize: 14, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 10, background: "none", color: "var(--text)", cursor: "pointer" }}>Yox</button>
+        <button onClick={confirmRemoveShop} style={{ flex: 1, padding: 11, fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "#dc2626", color: "#fff", cursor: "pointer" }}>Hə, sil</button>
+      </div>
+    </div>
+  </div>
+)}
   return (
     <div style={c.wrap}>
       <style>{CSS}</style>
