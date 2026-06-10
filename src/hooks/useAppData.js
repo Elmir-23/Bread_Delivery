@@ -4,8 +4,9 @@ import { doc, onSnapshot, setDoc, collection, addDoc } from "firebase/firestore"
 import { todayStr, addDays } from "../utils/dates";
 import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
 import { buildCSV, loadArchives, triggerArchiveIfNeeded, getTodayKey } from "../services/archive";
+import { logAction } from "../services/logger";
 
-export function useAppData() {
+export function useAppData(userEmail) {
   const [db_data, setDbData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("delivery");
@@ -101,7 +102,14 @@ export function useAppData() {
     const debts = { ...(nd.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
     nd.debts = debts;
-    await upd(nd); toast$("Saxlanıldı ✓"); setTimeout(() => setView("session"), 300);
+    await upd(nd);
+    logAction("delivery_save", userEmail, {
+      shop: db_data.shops[selShop]?.name,
+      session: selSess,
+      before: prev || null,
+      after: obj,
+    });
+    toast$("Saxlanıldı ✓"); setTimeout(() => setView("session"), 300);
   };
 
   const saveDebtCollection = async () => {
@@ -109,11 +117,18 @@ export function useAppData() {
     if (collected <= 0) { toast$("Məbləğ daxil edin"); return; }
     const TODAY = todayStr();
     const debts = { ...(db_data.debts || {}) };
-    debts[selShop] = (debts[selShop] || 0) - collected;
+    const before = debts[selShop] || 0;
+    debts[selShop] = before - collected;
     const debtPayments = { ...(db_data.debtPayments || {}) };
     if (!debtPayments[TODAY]) debtPayments[TODAY] = {};
     debtPayments[TODAY][selShop] = (debtPayments[TODAY][selShop] || 0) + collected;
     await upd({ ...db_data, debts, debtPayments });
+    logAction("debt_collect", userEmail, {
+      shop: db_data.shops[selShop]?.name,
+      collected,
+      debtBefore: before,
+      debtAfter: debts[selShop],
+    });
     setCollectedInput("");
     toast$("Borc yeniləndi ✓");
     setTimeout(() => setView("session"), 300);
@@ -132,16 +147,31 @@ export function useAppData() {
     const nd = { ...db_data, deliveries: { ...db_data.deliveries, [editDate]: { ...(db_data.deliveries?.[editDate] || {}), [editSelShop]: { ...(db_data.deliveries?.[editDate]?.[editSelShop] || {}) } } } };
     const obj = { given: { ...editEntryVals.given } };
     if (editSelSess === "morning") obj.leftover = { ...editEntryVals.leftover };
+    const prev = db_data.deliveries?.[editDate]?.[editSelShop]?.[editSelSess] || null;
     nd.deliveries[editDate][editSelShop][editSelSess] = obj;
-    await upd(nd); toast$("Saxlanıldı ✓"); setTimeout(() => setEditView("date-session"), 300);
+    await upd(nd);
+    logAction("delivery_edit", userEmail, {
+      date: editDate,
+      shop: db_data.shops[editSelShop]?.name,
+      session: editSelSess,
+      before: prev,
+      after: obj,
+    });
+    toast$("Saxlanıldı ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
 
   const saveEditDebt = async (shopIdx, newVal) => {
     const amount = parseFloat(newVal);
     if (isNaN(amount)) { toast$("Düzgün məbləğ daxil edin"); return; }
     const debts = { ...(db_data.debts || {}) };
+    const before = debts[shopIdx] || 0;
     debts[shopIdx] = amount;
     await upd({ ...db_data, debts });
+    logAction("debt_edit", userEmail, {
+      shop: db_data.shops[shopIdx]?.name,
+      before,
+      after: amount,
+    });
     setEditDebtShop(null); setEditDebtVal("");
     toast$("Borc yeniləndi ✓");
   };
@@ -158,6 +188,7 @@ export function useAppData() {
     if (!expenses[TODAY]) expenses[TODAY] = [];
     expenses[TODAY] = [...expenses[TODAY], ...entries];
     await upd({ ...db_data, expenses });
+    logAction("expense_add", userEmail, { entries });
     setExpVals({ benzin: "", moyka: "", baxim: "", diger: "", digerDesc: "" });
     toast$("Xərc saxlanıldı ✓");
     setExpView("list");
@@ -165,9 +196,11 @@ export function useAppData() {
 
   const deleteExpense = async (date, idx) => {
     const expenses = { ...(db_data.expenses || {}) };
+    const deleted = expenses[date]?.[idx] || null;
     expenses[date] = expenses[date].filter((_, i) => i !== idx);
     if (!expenses[date].length) delete expenses[date];
     await upd({ ...db_data, expenses });
+    logAction("expense_delete", userEmail, { date, deleted });
     toast$("Silindi ✓");
   };
 
@@ -181,19 +214,53 @@ export function useAppData() {
     if (!debtPayments[date]) debtPayments[date] = {};
     if (amount === 0) { delete debtPayments[date][shopIdx]; } else { debtPayments[date][shopIdx] = amount; }
     await upd({ ...db_data, debts, debtPayments });
+    logAction("collected_edit", userEmail, {
+      date,
+      shop: db_data.shops[shopIdx]?.name,
+      before: oldAmount,
+      after: amount,
+    });
     toast$("Yığılan yeniləndi ✓");
   };
 
   const resetAllData = async () => {
-    const built = buildCSV(db_data);
-    if (built) {
-      const { csv, rowCount, startDate, endDate } = built;
-      await addDoc(collection(db, "archives"), { weekMonday: getTodayKey(), archivedOn: todayStr(), rowCount, startDate, endDate, csv, note: "Sıfırlamadan əvvəl arxiv" });
+    try {
+      const built = buildCSV(db_data);
+      const csvHeader = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
+      const csv = built ? built.csv : csvHeader;
+      const rowCount = built ? built.rowCount : 0;
+      const startDate = built ? built.startDate : todayStr();
+      const endDate = built ? built.endDate : todayStr();
+
+      const archiveRef = await addDoc(collection(db, "archives"), {
+        weekMonday: getTodayKey(),
+        archivedOn: todayStr(),
+        rowCount, startDate, endDate, csv,
+        note: "Sıfırlamadan əvvəl arxiv",
+        resetBy: userEmail || "unknown",
+      });
+
+      if (!archiveRef || !archiveRef.id) {
+        toast$("❌ Arxiv yaradıla bilmədi — sıfırlama DAYANDIRILDI");
+        logAction("reset_failed", userEmail, { reason: "archive_failed" });
+        return;
+      }
+
+      await logAction("reset", userEmail, {
+        archiveId: archiveRef.id,
+        rowCount,
+        debtsBefore: db_data.debts || {},
+      });
+
+      await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {} });
+      setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
+      const list = await loadArchives(); setArchives(list);
+      toast$("✓ Arxivləndi və sıfırlandı");
+    } catch (e) {
+      console.error(e);
+      logAction("reset_failed", userEmail, { reason: String(e) });
+      toast$("❌ Xəta baş verdi — sıfırlama edilmədi");
     }
-    await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {} });
-    setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
-    const list = await loadArchives(); setArchives(list);
-    toast$("✓ Bütün məlumatlar sıfırlandı");
   };
 
   const calcStats = (period) => {
@@ -241,14 +308,18 @@ export function useAppData() {
   };
 
   const saveShops = async () => {
+    const before = db_data.shops;
     const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, damiryolu: s.railStr !== "" ? parseFloat(s.railStr) : null }));
-    await upd({ ...db_data, shops }); toast$("Mağazalar saxlanıldı ✓");
+    await upd({ ...db_data, shops });
+    logAction("shops_save", userEmail, { before, after: shops });
+    toast$("Mağazalar saxlanıldı ✓");
   };
 
   const addShop = () => {
     if (!newShopName.trim()) return;
     const shops = [...db_data.shops, { name: newShopName.trim(), kura: null, damiryolu: null }];
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
+    logAction("shop_add", userEmail, { name: newShopName.trim() });
     setNewShopName("");
     upd({ ...db_data, shops });
   };
@@ -260,21 +331,28 @@ export function useAppData() {
 
   const confirmRemoveShop = () => {
     const i = confirmDeleteShop;
+    const deleted = db_data.shops[i];
     const shops = db_data.shops.filter((_, x) => x !== i);
     setShopEdits(shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
     upd({ ...db_data, shops });
+    logAction("shop_delete", userEmail, { deleted });
     setConfirmDeleteShop(null);
   };
 
   const savePrices = async () => {
-    await upd({ ...db_data, prices: { kura: parseFloat(settPrices.kura) || 0, damiryolu: parseFloat(settPrices.damiryolu) || 0 } });
+    const before = db_data.prices;
+    const after = { kura: parseFloat(settPrices.kura) || 0, damiryolu: parseFloat(settPrices.damiryolu) || 0 };
+    await upd({ ...db_data, prices: after });
+    logAction("prices_save", userEmail, { before, after });
     toast$("Qiymətlər saxlanıldı ✓");
   };
 
   const changePin = async () => {
     if (pinOld !== db_data.pin) { toast$("Cari PIN yanlışdır"); return; }
     if (pinNew.length !== 4 || !/^\d+$/.test(pinNew)) { toast$("PIN 4 rəqəm olmalıdır"); return; }
-    await upd({ ...db_data, pin: pinNew }); toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
+    await upd({ ...db_data, pin: pinNew });
+    logAction("pin_change", userEmail, {});
+    toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
   };
 
   return {
