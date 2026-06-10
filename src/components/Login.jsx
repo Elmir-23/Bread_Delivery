@@ -29,7 +29,7 @@ export default function Login() {
       <div style={{ width: "100%", maxWidth: 360 }}>
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🚚</div>
-          <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Çörək Çatdırılması</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: "var(--text2)", marginBottom: 6 }}>ŞAH Market</div>
           <div style={{ fontSize: 14, color: "var(--text2)" }}>Daxil olmaq üçün məlumatlarınızı daxil edin</div>
         </div>
 
