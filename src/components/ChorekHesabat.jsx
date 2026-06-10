@@ -12,6 +12,7 @@ export default function ChorekHesabat({ db_data }) {
   if (period === "month") s = addDays(t, -29);
 
   const shopRows = [];
+  let grandGK = 0, grandGD = 0, grandLK = 0, grandLD = 0;
 
   db_data.shops.forEach((shop, i) => {
     const rows = [];
@@ -34,13 +35,11 @@ export default function ChorekHesabat({ db_data }) {
       totGK += gK; totGD += gD; totLK += lK; totLD += lD;
     });
 
-    if (totGK || totGD) shopRows.push({ shop, i, rows, totGK, totGD, totLK, totLD });
+    if (totGK || totGD) {
+      shopRows.push({ shop, i, rows, totGK, totGD, totLK, totLD });
+      grandGK += totGK; grandGD += totGD; grandLK += totLK; grandLD += totLD;
+    }
   });
-
-  const grandGK = shopRows.reduce((a, r) => a + r.totGK, 0);
-  const grandGD = shopRows.reduce((a, r) => a + r.totGD, 0);
-  const grandLK = shopRows.reduce((a, r) => a + r.totLK, 0);
-  const grandLD = shopRows.reduce((a, r) => a + r.totLD, 0);
 
   const th = (center, left) => ({
     padding: "5px 6px", fontSize: 10, fontWeight: 700,
@@ -62,6 +61,41 @@ export default function ChorekHesabat({ db_data }) {
       </div>
       <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 10, padding: "0 1rem" }}>{fmtDate(t)}</div>
 
+      {/* Yuxarıda xülasə kartları */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
+        <div style={c.metric}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>Verilən</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>Kura</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{grandGK}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>Damiryolu</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{grandGD}</span>
+          </div>
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 6, paddingTop: 6, display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>Cəmi</span>
+            <span style={{ fontSize: 18, fontWeight: 700 }}>{grandGK + grandGD}</span>
+          </div>
+        </div>
+        <div style={c.metric}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>Qaytarılan</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>Kura</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{grandLK || "—"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>Damiryolu</span>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{grandLD || "—"}</span>
+          </div>
+          <div style={{ borderTop: "1px solid var(--border)", marginTop: 6, paddingTop: 6, display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, color: "var(--text2)" }}>Cəmi</span>
+            <span style={{ fontSize: 18, fontWeight: 700 }}>{(grandLK + grandLD) || "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Cədvəl */}
       {shopRows.length === 0 ? (
         <div style={{ ...c.block, margin: "0 1rem", textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>
           Bu dövr üçün məlumat yoxdur.
