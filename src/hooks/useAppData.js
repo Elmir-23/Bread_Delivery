@@ -400,12 +400,6 @@ const saveHandover = async (amount) => {
   toast$("Kassa yeniləndi ✓");
 };
 
-  const newKassaBalance = parseFloat(kassa.toFixed(2));
-  await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
-  logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
-  toast$("Təhvil saxlanıldı ✓");
-};
-
   return {
     db_data, loading, tab, setTab, view, setView,
     selShop, setSelShop, selSess, setSelSess,
