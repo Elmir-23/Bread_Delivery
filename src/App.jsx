@@ -6,8 +6,8 @@ import ShopsScreen from "./components/delivery/ShopsScreen";
 import SessionScreen from "./components/delivery/SessionScreen";
 import EntryForm from "./components/delivery/EntryForm";
 import DebtScreen from "./components/delivery/DebtScreen";
-import Expenses from "./components/Expenses";
-import Gundelik from "./components/Gundelik";
+import Borclar from "./components/Borclar";
+import ChorekHesabat from "./components/ChorekHesabat";
 import Dashboard from "./components/owner/Dashboard";
 import Reports from "./components/owner/Reports";
 import EditSection from "./components/owner/EditSection";
@@ -78,8 +78,8 @@ export default function App() {
       )}
 
       <div style={c.nav}>
-        {[["delivery","🚚","Çatdırılma"],["gundelik","📋","Gündəlik"],["expenses","🚗","Xərclər"],["owner","🔐","Sahibkar"]].map(([key,icon,lbl]) => (
-          <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") setView("shops"); if (key==="expenses") setExpView("list"); }}>
+        {[["delivery","🚚","Çatdırılma"],["borclar","💰","Borclar"],["hesabat","📊","Çörək Hesabatı"],["owner","🔐","Sahibkar"]].map(([key,icon,lbl]) => (
+          <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") { setView("shops"); setExpView("list"); } }}>
             <span style={{ fontSize: 18 }}>{icon}</span>{lbl}
           </button>
         ))}
@@ -87,14 +87,29 @@ export default function App() {
 
       {tab === "delivery" && (
         <>
-          {view === "shops" && <ShopsScreen db_data={db_data} TODAY={TODAY} setSelShop={setSelShop} setView={setView} />}
+          {view === "shops" && (
+            <ShopsScreen
+              db_data={db_data}
+              TODAY={TODAY}
+              setSelShop={setSelShop}
+              setView={setView}
+              expView={expView}
+              setExpView={setExpView}
+              expVals={expVals}
+              setExpVals={setExpVals}
+              saveExpense={saveExpense}
+              deleteExpense={deleteExpense}
+            />
+          )}
           {view === "session" && <SessionScreen db_data={db_data} TODAY={TODAY} selShop={selShop} setView={setView} setCollectedInput={setCollectedInput} openDeliveryEntry={openDeliveryEntry} />}
           {view === "entry" && <EntryForm db_data={db_data} vals={entryVals} adjFn={adjDelivery} saveFn={saveDeliveryEntry} backFn={() => setView("session")} shopIdx={selShop} sessId={selSess} date={TODAY} />}
           {view === "debt" && <DebtScreen db_data={db_data} TODAY={TODAY} selShop={selShop} collectedInput={collectedInput} setCollectedInput={setCollectedInput} saveDebtCollection={saveDebtCollection} setView={setView} />}
         </>
       )}
-      {tab === "gundelik" && <Gundelik db_data={db_data} />}
-      {tab === "expenses" && <Expenses db_data={db_data} expView={expView} setExpView={setExpView} expVals={expVals} setExpVals={setExpVals} saveExpense={saveExpense} deleteExpense={deleteExpense} />}
+
+      {tab === "borclar" && <Borclar db_data={db_data} />}
+      {tab === "hesabat" && <ChorekHesabat db_data={db_data} />}
+
       {tab === "owner" && (
         <>
           {!ownerUnlocked && (
