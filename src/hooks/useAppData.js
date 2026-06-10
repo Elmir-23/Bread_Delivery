@@ -103,12 +103,7 @@ export function useAppData(userEmail) {
     debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
     nd.debts = debts;
     await upd(nd);
-    logAction("delivery_save", userEmail, {
-      shop: db_data.shops[selShop]?.name,
-      session: selSess,
-      before: prev || null,
-      after: obj,
-    });
+    logAction("delivery_save", userEmail, { shop: db_data.shops[selShop]?.name, session: selSess, before: prev || null, after: obj });
     toast$("Saxlanıldı ✓"); setTimeout(() => setView("session"), 300);
   };
 
@@ -123,12 +118,7 @@ export function useAppData(userEmail) {
     if (!debtPayments[TODAY]) debtPayments[TODAY] = {};
     debtPayments[TODAY][selShop] = (debtPayments[TODAY][selShop] || 0) + collected;
     await upd({ ...db_data, debts, debtPayments });
-    logAction("debt_collect", userEmail, {
-      shop: db_data.shops[selShop]?.name,
-      collected,
-      debtBefore: before,
-      debtAfter: debts[selShop],
-    });
+    logAction("debt_collect", userEmail, { shop: db_data.shops[selShop]?.name, collected, debtBefore: before, debtAfter: debts[selShop] });
     setCollectedInput("");
     toast$("Borc yeniləndi ✓");
     setTimeout(() => setView("session"), 300);
@@ -150,13 +140,7 @@ export function useAppData(userEmail) {
     const prev = db_data.deliveries?.[editDate]?.[editSelShop]?.[editSelSess] || null;
     nd.deliveries[editDate][editSelShop][editSelSess] = obj;
     await upd(nd);
-    logAction("delivery_edit", userEmail, {
-      date: editDate,
-      shop: db_data.shops[editSelShop]?.name,
-      session: editSelSess,
-      before: prev,
-      after: obj,
-    });
+    logAction("delivery_edit", userEmail, { date: editDate, shop: db_data.shops[editSelShop]?.name, session: editSelSess, before: prev, after: obj });
     toast$("Saxlanıldı ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
 
@@ -167,11 +151,7 @@ export function useAppData(userEmail) {
     const before = debts[shopIdx] || 0;
     debts[shopIdx] = amount;
     await upd({ ...db_data, debts });
-    logAction("debt_edit", userEmail, {
-      shop: db_data.shops[shopIdx]?.name,
-      before,
-      after: amount,
-    });
+    logAction("debt_edit", userEmail, { shop: db_data.shops[shopIdx]?.name, before, after: amount });
     setEditDebtShop(null); setEditDebtVal("");
     toast$("Borc yeniləndi ✓");
   };
@@ -214,12 +194,7 @@ export function useAppData(userEmail) {
     if (!debtPayments[date]) debtPayments[date] = {};
     if (amount === 0) { delete debtPayments[date][shopIdx]; } else { debtPayments[date][shopIdx] = amount; }
     await upd({ ...db_data, debts, debtPayments });
-    logAction("collected_edit", userEmail, {
-      date,
-      shop: db_data.shops[shopIdx]?.name,
-      before: oldAmount,
-      after: amount,
-    });
+    logAction("collected_edit", userEmail, { date, shop: db_data.shops[shopIdx]?.name, before: oldAmount, after: amount });
     toast$("Yığılan yeniləndi ✓");
   };
 
@@ -231,28 +206,18 @@ export function useAppData(userEmail) {
       const rowCount = built ? built.rowCount : 0;
       const startDate = built ? built.startDate : todayStr();
       const endDate = built ? built.endDate : todayStr();
-
       const archiveRef = await addDoc(collection(db, "archives"), {
-        weekMonday: getTodayKey(),
-        archivedOn: todayStr(),
-        rowCount, startDate, endDate, csv,
-        note: "Sıfırlamadan əvvəl arxiv",
-        resetBy: userEmail || "unknown",
+        weekMonday: getTodayKey(), archivedOn: todayStr(), rowCount, startDate, endDate, csv,
+        note: "Sıfırlamadan əvvəl arxiv", resetBy: userEmail || "unknown",
       });
-
       if (!archiveRef || !archiveRef.id) {
         toast$("❌ Arxiv yaradıla bilmədi — sıfırlama DAYANDIRILDI");
         logAction("reset_failed", userEmail, { reason: "archive_failed" });
         return;
       }
-
-      await logAction("reset", userEmail, {
-        archiveId: archiveRef.id,
-        rowCount,
-        debtsBefore: db_data.debts || {},
-      });
-
-      await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });      setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
+      await logAction("reset", userEmail, { archiveId: archiveRef.id, rowCount, debtsBefore: db_data.debts || {} });
+      await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });
+      setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
       const list = await loadArchives(); setArchives(list);
       toast$("✓ Arxivləndi və sıfırlandı");
     } catch (e) {
@@ -354,50 +319,50 @@ export function useAppData(userEmail) {
     toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
   };
 
-const saveHandover = async (amount) => {
-  const TODAY = todayStr();
-  const amt = parseFloat(amount) || 0;
-  if (amt <= 0) { toast$("Məbləğ mənfi ola bilməz"); return; }
-  const handovers = { ...(db_data.handovers || {}) };
-  handovers[TODAY] = amt;
-  const allDates = [...new Set([
-    ...Object.keys(db_data.debtPayments || {}),
-    ...Object.keys(db_data.expenses || {}),
-    ...Object.keys(handovers),
-  ])].sort();
-  let kassa = db_data.kassaAdjustment || 0;
-  allDates.forEach(date => {
-    const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
-    const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-    const tehvil = handovers[date] || 0;
-    kassa += yigilan - exp - tehvil;
-  });
-  const newKassaBalance = parseFloat(kassa.toFixed(2));
-  await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
-  logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
-  toast$("Təhvil saxlanıldı ✓");
-};
+  const saveHandover = async (amount) => {
+    const TODAY = todayStr();
+    const amt = parseFloat(amount) || 0;
+    if (amt < 0) { toast$("Məbləğ mənfi ola bilməz"); return; }
+    const handovers = { ...(db_data.handovers || {}) };
+    handovers[TODAY] = amt;
+    const allDates = [...new Set([
+      ...Object.keys(db_data.debtPayments || {}),
+      ...Object.keys(db_data.expenses || {}),
+      ...Object.keys(handovers),
+    ])].sort();
+    let kassa = db_data.kassaAdjustment || 0;
+    allDates.forEach(date => {
+      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+      const tehvil = handovers[date] !== undefined ? handovers[date] : 0;
+      kassa += yigilan - exp - tehvil;
+    });
+    const newKassaBalance = parseFloat(kassa.toFixed(2));
+    await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
+    toast$("Təhvil saxlanıldı ✓");
+  };
 
-const saveKassaAdjustment = async (targetBalance) => {
-  const target = parseFloat(targetBalance);
-  if (isNaN(target)) { toast$("Düzgün məbləğ daxil edin"); return; }
-  const allDates = [...new Set([
-    ...Object.keys(db_data.debtPayments || {}),
-    ...Object.keys(db_data.expenses || {}),
-    ...Object.keys(db_data.handovers || {}),
-  ])].sort();
-  let currentWithoutAdj = 0;
-  allDates.forEach(date => {
-    const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
-    const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-    const tehvil = db_data.handovers?.[date] || 0;
-    currentWithoutAdj += yigilan - exp - tehvil;
-  });
-  const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
-  await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target });
-  logAction("kassa_adjustment", userEmail, { targetBalance: target, adjustment: newAdj });
-  toast$("Kassa yeniləndi ✓");
-};
+  const saveKassaAdjustment = async (targetBalance) => {
+    const target = parseFloat(targetBalance);
+    if (isNaN(target)) { toast$("Düzgün məbləğ daxil edin"); return; }
+    const allDates = [...new Set([
+      ...Object.keys(db_data.debtPayments || {}),
+      ...Object.keys(db_data.expenses || {}),
+      ...Object.keys(db_data.handovers || {}),
+    ])].sort();
+    let currentWithoutAdj = 0;
+    allDates.forEach(date => {
+      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+      const tehvil = db_data.handovers?.[date] !== undefined ? db_data.handovers[date] : 0;
+      currentWithoutAdj += yigilan - exp - tehvil;
+    });
+    const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
+    await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target });
+    logAction("kassa_adjustment", userEmail, { targetBalance: target, adjustment: newAdj });
+    toast$("Kassa yeniləndi ✓");
+  };
 
   return {
     db_data, loading, tab, setTab, view, setView,
@@ -427,6 +392,6 @@ const saveKassaAdjustment = async (targetBalance) => {
     saveEditDebt, saveEditCollected, saveExpense, deleteExpense,
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
-    savePrices, changePin, saveHandover,saveKassaAdjustment,
+    savePrices, changePin, saveHandover, saveKassaAdjustment,
   };
 }
