@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { doc, collection, getDocs, addDoc } from "firebase/firestore";
+import { collection, getDocs, addDoc } from "firebase/firestore";
 import { todayStr } from "../utils/dates";
 import { SESS } from "../constants";
 
@@ -8,7 +8,7 @@ export function buildCSV(data) {
   const shopKuraP = (i) => shops[i]?.kura ?? prices?.kura ?? 0.55;
   const shopDamiP = (i) => shops[i]?.damiryolu ?? prices?.damiryolu ?? 0.65;
   const SESS_IDS = ["morning", "afternoon", "evening"];
-  const SESS_LABELS = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" };
+  const SESS_LABELS = { morning: "Səhər", afternoon: "Günorta", evening: "Axşam" };
   const allDates = Object.keys(deliveries || {}).sort();
   if (!allDates.length) return null;
   const runningDebt = {};
@@ -60,18 +60,18 @@ export async function loadArchives() {
   const snap = await getDocs(collection(db, "archives"));
   return snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => b.weekMonday.localeCompare(a.weekMonday));
+    .sort((a, b) => b.archivedOn.localeCompare(a.archivedOn));
 }
 
 export async function triggerArchiveIfNeeded(data) {
-  const thisMonday = getTodayKey();
+  const today = todayStr();
   const snap = await getDocs(collection(db, "archives"));
-  const alreadyDone = snap.docs.some(d => d.data().archivedOn === thisMonday);
+  const alreadyDone = snap.docs.some(d => d.data().archivedOn === today);
   if (alreadyDone) return;
   const built = buildCSV(data);
   if (!built) return;
   const { csv, rowCount, startDate, endDate } = built;
-  await addDoc(collection(db, "archives"), { weekMonday: thisMonday, archivedOn: todayStr(), rowCount, startDate, endDate, csv });
+  await addDoc(collection(db, "archives"), { weekMonday: today, archivedOn: today, rowCount, startDate, endDate, csv });
 }
 
 export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
