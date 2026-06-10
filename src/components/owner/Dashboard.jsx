@@ -1,37 +1,33 @@
+import { useState } from "react";
 import { c } from "../../styles/styles";
+import { todayStr, addDays } from "../../utils/dates";
 import { EXP_CATS } from "../../constants";
 
-export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt }) {
-  const { totGK, totGR, totLK, totLR, totRev, totCollected } = calcStats(dashPeriod);
+export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover }) {
+  const [handoverInput, setHandoverInput] = useState("");
+
+  const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
+  const { totExp } = calcExpenses(dashPeriod);
   const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
 
-  const { totExp, byCat } = calcExpenses(dashPeriod);
+  const t = todayStr();
+  let s = t;
+  if (dashPeriod === "week") s = addDays(t, -6);
+  if (dashPeriod === "month") s = addDays(t, -29);
+
+  const totHandover = Object.entries(db_data.handovers || {})
+    .filter(([d]) => d >= s && d <= t)
+    .reduce((a, [, v]) => a + v, 0);
+
+  const kassaBalance = db_data.kassaBalance || 0;
 
   const revs = db_data.shops
-    .map((s, i) => ({ name: s.name, rev: calcStats(dashPeriod).ss[i]?.rev || 0 }))
+    .map((shop, i) => ({ name: shop.name, rev: ss[i]?.rev || 0 }))
     .filter(x => x.rev > 0)
     .sort((a, b) => b.rev - a.rev);
   const maxR = revs.length ? revs[0].rev : 1;
 
-  const thStyle = (center) => ({
-    padding: "6px 8px", fontSize: 10, fontWeight: 700,
-    color: "var(--text2)", textAlign: center ? "center" : "left",
-    background: "var(--bg2)", border: "1px solid var(--border)", whiteSpace: "nowrap"
-  });
-  const tdStyle = (color, bold) => ({
-    padding: "7px 8px", fontSize: 12, textAlign: "center",
-    border: "1px solid var(--border)",
-    color: color || "var(--text)",
-    fontWeight: bold ? 700 : 400,
-    whiteSpace: "nowrap"
-  });
-  const tdLStyle = (bold) => ({
-    padding: "7px 10px", fontSize: 12, textAlign: "left",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
-    fontWeight: bold ? 700 : 400,
-    whiteSpace: "nowrap"
-  });
+  const todayHandover = db_data.handovers?.[todayStr()] || 0;
 
   return (
     <div style={c.pad}>
@@ -41,43 +37,74 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         ))}
       </div>
 
-      {/* Gəlir */}
+      {/* Dövriyyə */}
       <div style={{ ...c.metric, marginBottom: 8 }}>
-        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Gəlir</div>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Dövriyyə</div>
         <div style={{ fontSize: 28, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
       </div>
 
-      {/* Ümumi borc + yığılan */}
+      {/* 2x2 grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        <div style={{ ...c.metric }}>
+        <div style={c.metric}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
             {totalDebt.toFixed(2)} ₼
           </div>
         </div>
         <div style={{ ...c.metricGreen }}>
-          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Ümumi yığılan</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--collected-text)" }}>
+          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--collected-text)" }}>
             {totCollected.toFixed(2)} ₼
+          </div>
+        </div>
+        <div style={{ ...c.metric, border: totExp > 0 ? "1px solid #fca5a5" : "none" }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Xərclər</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: totExp > 0 ? "#dc2626" : "var(--text)" }}>
+            {totExp > 0 ? `-${totExp.toFixed(2)} ₼` : "—"}
+          </div>
+        </div>
+        <div style={c.metric}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>
+            {totHandover > 0 ? `${totHandover.toFixed(2)} ₼` : "—"}
           </div>
         </div>
       </div>
 
-      {/* Xərclər */}
-      {totExp > 0 && (
-        <div style={{ ...c.metric, marginBottom: 8, border: "1px solid #fca5a5" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 11, color: "var(--text2)" }}>🚗 Maşın xərcləri</div>
-            <div style={{ fontSize: 20, fontWeight: 600, color: "#dc2626" }}>{totExp.toFixed(2)} ₼</div>
-          </div>
-          {EXP_CATS.filter(cat => byCat[cat.id] > 0).map(cat => (
-            <div key={cat.id} className="sub-metric">
-              <span style={{ fontSize: 12, color: "var(--text2)" }}>{cat.icon} {cat.label}</span>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#dc2626" }}>{byCat[cat.id].toFixed(2)} ₼</span>
+      {/* Kassa qalığı */}
+      <div style={{ ...c.metric, marginBottom: "1rem", background: kassaBalance >= 0 ? "var(--bg2)" : "#fef2f2", border: kassaBalance < 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>💵 Kassa qalığı</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: kassaBalance >= 0 ? "var(--text)" : "#dc2626" }}>
+              {kassaBalance.toFixed(2)} ₼
             </div>
-          ))}
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Təhvil daxil et */}
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Təhvil daxil et</div>
+      <div style={{ ...c.block, marginBottom: "1rem" }}>
+        <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
+          Sürücünün bu gün sahibkara verdiyi məbləğ
+          {todayHandover > 0 && <span style={{ color: "var(--success-text)", marginLeft: 8 }}>Cari: {todayHandover.toFixed(2)} ₼</span>}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="number" min={0} step={0.01}
+            value={handoverInput}
+            onChange={e => setHandoverInput(e.target.value)}
+            placeholder="0.00"
+            style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+          />
+          <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
+          <button
+            style={{ padding: "10px 16px", fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
+            onClick={() => { saveHandover(handoverInput); setHandoverInput(""); }}
+          >Saxla</button>
+        </div>
+      </div>
 
       {/* Çörək hesabatı */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Çörək hesabatı</div>
@@ -85,33 +112,60 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={thStyle(false)}></th>
-              <th colSpan={3} style={{ ...thStyle(true), borderBottom: "none" }}>Verilən</th>
-              <th colSpan={3} style={{ ...thStyle(true), borderBottom: "none" }}>Qaytarılan</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "left", background: "var(--bg2)", border: "1px solid var(--border)" }}></th>
+              <th colSpan={3} style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)", borderBottom: "none" }}>Verilən</th>
+              <th colSpan={3} style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)", borderBottom: "none" }}>Qaytarılan</th>
             </tr>
             <tr>
-              <th style={thStyle(false)}></th>
-              <th style={thStyle(true)}>Kura</th>
-              <th style={thStyle(true)}>Damiryolu</th>
-              <th style={thStyle(true)}>Ümumi</th>
-              <th style={thStyle(true)}>Kura</th>
-              <th style={thStyle(true)}>Damiryolu</th>
-              <th style={thStyle(true)}>Ümumi</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "left", background: "var(--bg2)", border: "1px solid var(--border)" }}></th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Kura</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Damiryolu</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Ümumi</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Kura</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Damiryolu</th>
+              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Ümumi</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style={tdLStyle(true)}>Cəmi</td>
-              <td style={tdStyle()}>{totGK}</td>
-              <td style={tdStyle()}>{totGR}</td>
-              <td style={{ ...tdStyle(), fontWeight: 700 }}>{totGK + totGR}</td>
-              <td style={tdStyle()}>{totLK || "—"}</td>
-              <td style={tdStyle()}>{totLR || "—"}</td>
-              <td style={{ ...tdStyle(), fontWeight: 700 }}>{(totLK + totLR) || "—"}</td>
+              <td style={{ padding: "7px 10px", fontSize: 12, fontWeight: 600, border: "1px solid var(--border)" }}>Cəmi</td>
+              <td style={{ padding: "7px 8px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)" }}>{totGK}</td>
+              <td style={{ padding: "7px 8px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)" }}>{totGR}</td>
+              <td style={{ padding: "7px 8px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)", fontWeight: 700 }}>{totGK + totGR}</td>
+              <td style={{ padding: "7px 8px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)" }}>{totLK || "—"}</td>
+              <td style={{ padding: "7px 8px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)" }}>{totLR || "—"}</td>
+              <td style={{ padding: "7px 8px", fontSize: 12, textAlign: "center", border: "1px solid var(--border)", fontWeight: 700 }}>{(totLK + totLR) || "—"}</td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      {/* Xərclər detalı */}
+      {totExp > 0 && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Xərclər</div>
+          <div style={{ ...c.listCard, marginBottom: "1rem" }}>
+            {EXP_CATS.filter(cat => {
+              let sum = 0;
+              Object.entries(db_data.expenses || {}).forEach(([date, entries]) => {
+                if (date >= s && date <= t) entries.filter(e => e.cat === cat.id).forEach(e => { sum += e.amount; });
+              });
+              return sum > 0;
+            }).map((cat, i, arr) => {
+              let sum = 0;
+              Object.entries(db_data.expenses || {}).forEach(([date, entries]) => {
+                if (date >= s && date <= t) entries.filter(e => e.cat === cat.id).forEach(e => { sum += e.amount; });
+              });
+              return (
+                <div key={cat.id} style={c.listRow(i === arr.length - 1)}>
+                  <span style={{ fontSize: 13 }}>{cat.icon} {cat.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>{sum.toFixed(2)} ₼</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* Mağazalar üzrə gəlir */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağazalar üzrə gəlir</div>
