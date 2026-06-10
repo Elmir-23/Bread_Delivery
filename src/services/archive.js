@@ -53,11 +53,7 @@ export function buildCSV(data) {
 }
 
 export function getTodayKey() {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = (day === 0) ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  return todayStr();
 }
 
 export async function loadArchives() {
@@ -70,7 +66,7 @@ export async function loadArchives() {
 export async function triggerArchiveIfNeeded(data) {
   const thisMonday = getTodayKey();
   const snap = await getDocs(collection(db, "archives"));
-  const alreadyDone = snap.docs.some(d => d.data().weekMonday === thisMonday);
+  const alreadyDone = snap.docs.some(d => d.data().archivedOn === thisMonday);
   if (alreadyDone) return;
   const built = buildCSV(data);
   if (!built) return;
