@@ -3,8 +3,10 @@ import { c } from "../../styles/styles";
 import { todayStr, addDays } from "../../utils/dates";
 import { EXP_CATS } from "../../constants";
 
-export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover }) {
+export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment }) {
   const [handoverInput, setHandoverInput] = useState("");
+  const [kassaInput, setKassaInput] = useState("");
+  const [showKassaEdit, setShowKassaEdit] = useState(false);
 
   const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
   const { totExp } = calcExpenses(dashPeriod);
@@ -18,30 +20,30 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
   const totHandover = Object.entries(db_data.handovers || {})
     .filter(([d]) => d >= s && d <= t)
     .reduce((a, [, v]) => a + v, 0);
- 
- const kassaBalance = (() => {
-  const allDates = [...new Set([
-    ...Object.keys(db_data.debtPayments || {}),
-    ...Object.keys(db_data.expenses || {}),
-    ...Object.keys(db_data.handovers || {}),
-  ])].sort();
-  let kassa = 0;
-  allDates.forEach(date => {
-    const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
-    const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-    const tehvil = db_data.handovers?.[date] || 0;
-    kassa += yigilan - exp - tehvil;
-  });
-  return parseFloat(kassa.toFixed(2));
-})();
+
+  const kassaBalance = (() => {
+    const allDates = [...new Set([
+      ...Object.keys(db_data.debtPayments || {}),
+      ...Object.keys(db_data.expenses || {}),
+      ...Object.keys(db_data.handovers || {}),
+    ])].sort();
+    let kassa = db_data.kassaAdjustment || 0;
+    allDates.forEach(date => {
+      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+      const tehvil = db_data.handovers?.[date] || 0;
+      kassa += yigilan - exp - tehvil;
+    });
+    return parseFloat(kassa.toFixed(2));
+  })();
+
+  const todayHandover = db_data.handovers?.[todayStr()] || 0;
 
   const revs = db_data.shops
     .map((shop, i) => ({ name: shop.name, rev: ss[i]?.rev || 0 }))
     .filter(x => x.rev > 0)
     .sort((a, b) => b.rev - a.rev);
   const maxR = revs.length ? revs[0].rev : 1;
-
-  const todayHandover = db_data.handovers?.[todayStr()] || 0;
 
   return (
     <div style={c.pad}>
@@ -71,7 +73,7 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
             {totCollected.toFixed(2)} ₼
           </div>
         </div>
-        <div style={{ ...c.metric, border: totExp > 0 ? "1px solid #fca5a5" : "none" }}>
+        <div style={{ ...c.metric, border: totExp > 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Xərclər</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: totExp > 0 ? "#dc2626" : "var(--text)" }}>
             {totExp > 0 ? `-${totExp.toFixed(2)} ₼` : "—"}
@@ -85,16 +87,44 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         </div>
       </div>
 
-      {/* Kassa qalığı */}
-      <div style={{ ...c.metric, marginBottom: "1rem", background: kassaBalance >= 0 ? "var(--bg2)" : "#fef2f2", border: kassaBalance < 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
+      {/* Kassa */}
+      <div style={{ ...c.metric, marginBottom: "1rem", border: `1px solid ${kassaBalance >= 0 ? "var(--border)" : "#fca5a5"}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>💵 Kassa qalığı</div>
+            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>💵 Kassa</div>
             <div style={{ fontSize: 22, fontWeight: 700, color: kassaBalance >= 0 ? "var(--text)" : "#dc2626" }}>
               {kassaBalance.toFixed(2)} ₼
             </div>
+            {db_data.kassaAdjustment !== 0 && (
+              <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
+                Başlanğıc: {(db_data.kassaAdjustment || 0).toFixed(2)} ₼
+              </div>
+            )}
           </div>
+          <button
+            onClick={() => { setShowKassaEdit(!showKassaEdit); setKassaInput(String(db_data.kassaAdjustment || 0)); }}
+            style={{ fontSize: 11, padding: "4px 10px", border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }}
+          >✏️ Düzəlt</button>
         </div>
+        {showKassaEdit && (
+          <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>Kassanın başlanğıc məbləğini daxil edin</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="number" step={0.01}
+                value={kassaInput}
+                onChange={e => setKassaInput(e.target.value)}
+                placeholder="0.00"
+                style={{ flex: 1, padding: "8px 10px", fontSize: 15, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+              />
+              <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
+              <button
+                style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
+                onClick={() => { saveKassaAdjustment(kassaInput); setShowKassaEdit(false); }}
+              >Saxla</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Təhvil daxil et */}
@@ -132,12 +162,9 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
             </tr>
             <tr>
               <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "left", background: "var(--bg2)", border: "1px solid var(--border)" }}></th>
-              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Kura</th>
-              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Damiryolu</th>
-              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Ümumi</th>
-              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Kura</th>
-              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Damiryolu</th>
-              <th style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>Ümumi</th>
+              {["Kura","Damiryolu","Ümumi","Kura","Damiryolu","Ümumi"].map((h,i) => (
+                <th key={i} style={{ padding: "5px 8px", fontSize: 10, fontWeight: 700, color: "var(--text2)", textAlign: "center", background: "var(--bg2)", border: "1px solid var(--border)" }}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
