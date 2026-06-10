@@ -35,10 +35,11 @@ export default function Borclar({ db_data }) {
     shopRows.push({ i, name: shop.name, evvelki, todayGiven, yigilan, gunSonu });
   });
 
-  const totEvvelki = shopRows.reduce((a, r) => a + r.evvelki, 0);
   const totBugun = shopRows.reduce((a, r) => a + r.todayGiven, 0);
   const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
+  const totEvvelki = shopRows.reduce((a, r) => a + r.evvelki, 0);
   const totGunSonu = shopRows.reduce((a, r) => a + r.gunSonu, 0);
+  const umumiBorc = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
 
   const thStyle = (center) => ({
     padding: "6px 8px", fontSize: 10, fontWeight: 700,
@@ -68,6 +69,29 @@ export default function Borclar({ db_data }) {
         {fmtDate(TODAY)}
       </div>
 
+      {/* 3 kart */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
+        <div style={{ ...c.metric }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: umumiBorc > 0 ? "#dc2626" : umumiBorc < 0 ? "var(--success-text)" : "var(--text)" }}>
+            {umumiBorc.toFixed(2)} ₼
+          </div>
+        </div>
+        <div style={{ ...c.metric }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Bugünkü borc</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: totBugun > 0 ? "#dc2626" : "var(--text)" }}>
+            {totBugun > 0 ? totBugun.toFixed(2) : "—"} {totBugun > 0 ? "₼" : ""}
+          </div>
+        </div>
+        <div style={{ ...c.metricGreen }}>
+          <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Bu gün yığılan</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "var(--collected-text)" }}>
+            {totYigilan > 0 ? totYigilan.toFixed(2) : "—"} {totYigilan > 0 ? "₼" : ""}
+          </div>
+        </div>
+      </div>
+
+      {/* Cədvəl */}
       {shopRows.length === 0 ? (
         <div style={{ ...c.block, margin: "0 1rem", textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>
           Bu gün hələ məlumat yoxdur.
@@ -121,23 +145,6 @@ export default function Borclar({ db_data }) {
           </table>
         </div>
       )}
-
-      <div style={{ padding: "1rem 1rem 0" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div style={{ ...c.metric }}>
-            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: totGunSonu > 0 ? "#dc2626" : "var(--success-text)" }}>
-              {Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0).toFixed(2)} ₼
-            </div>
-          </div>
-          <div style={{ ...c.metricGreen }}>
-            <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Bu gün yığılan</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--collected-text)" }}>
-              {totYigilan.toFixed(2)} ₼
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
