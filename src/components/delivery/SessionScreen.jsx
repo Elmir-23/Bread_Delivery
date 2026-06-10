@@ -23,7 +23,10 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
   const netD = Math.max(0, totalGD - totalLD);
   const givenVal = totalGK * kPrice + totalGD * rPrice;
   const leftVal = totalLK * kPrice + totalLD * rPrice;
-  const todayDebt = givenVal - leftVal;
+  const todayYigilan = Object.values(db_data.debtPayments?.[TODAY]?.[selShop] !== undefined 
+   ? { [selShop]: db_data.debtPayments?.[TODAY]?.[selShop] } 
+   : {}).reduce((a, b) => a + b, 0);
+  const todayDebt = givenVal - leftVal - todayYigilan;
   const hasAny = totalGK > 0 || totalGD > 0;
 
   const thS = { padding: "4px 6px", fontSize: 11, fontWeight: 500, color: "var(--text2)", textAlign: "center" };
