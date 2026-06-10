@@ -29,5 +29,7 @@ export const DEFAULT_DB = {
   debts: {},
   debtPayments: {},
   expenses: {},
+  handovers: {},
+  kassaBalance: 0,
   shops: DEF_SHOPS.map(n => ({ name: n, kura: null, damiryolu: null }))
 };
