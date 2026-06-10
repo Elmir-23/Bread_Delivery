@@ -357,7 +357,7 @@ export function useAppData(userEmail) {
 const saveHandover = async (amount) => {
   const TODAY = todayStr();
   const amt = parseFloat(amount) || 0;
-  if (amt <= 0) { toast$("Məbləğ daxil edin"); return; }
+  if (amt <= 0) { toast$("Məbləğ mənfi ola bilməz"); return; }
   const handovers = { ...(db_data.handovers || {}) };
   handovers[TODAY] = amt;
   const allDates = [...new Set([
@@ -378,24 +378,24 @@ const saveHandover = async (amount) => {
   toast$("Təhvil saxlanıldı ✓");
 };
 
-  const saveKassaAdjustment = async (amount) => {
-  const amt = parseFloat(amount);
-  if (isNaN(amt)) { toast$("Düzgün məbləğ daxil edin"); return; }
+const saveKassaAdjustment = async (targetBalance) => {
+  const target = parseFloat(targetBalance);
+  if (isNaN(target)) { toast$("Düzgün məbləğ daxil edin"); return; }
   const allDates = [...new Set([
     ...Object.keys(db_data.debtPayments || {}),
     ...Object.keys(db_data.expenses || {}),
     ...Object.keys(db_data.handovers || {}),
   ])].sort();
-  let kassa = amt;
+  let currentWithoutAdj = 0;
   allDates.forEach(date => {
     const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
     const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
     const tehvil = db_data.handovers?.[date] || 0;
-    kassa += yigilan - exp - tehvil;
+    currentWithoutAdj += yigilan - exp - tehvil;
   });
-  const newKassaBalance = parseFloat(kassa.toFixed(2));
-  await upd({ ...db_data, kassaAdjustment: amt, kassaBalance: newKassaBalance });
-  logAction("kassa_adjustment", userEmail, { amount: amt, kassaBalance: newKassaBalance });
+  const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
+  await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target });
+  logAction("kassa_adjustment", userEmail, { targetBalance: target, adjustment: newAdj });
   toast$("Kassa yeniləndi ✓");
 };
 
