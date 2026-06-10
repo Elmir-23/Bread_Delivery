@@ -118,7 +118,7 @@ export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn,
       });
     });
   });
-  const blob = new Blob([csv], { type: "text/csv" });
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `bread-delivery-${repPeriod}.csv`;
