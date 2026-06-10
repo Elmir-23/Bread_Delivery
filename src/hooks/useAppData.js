@@ -3,7 +3,7 @@ import { db } from "../firebase";
 import { doc, onSnapshot, setDoc, collection, addDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
-import { buildCSV, loadArchives, triggerArchiveIfNeeded, getThisWeekMonday } from "../services/archive";
+import { buildCSV, loadArchives, triggerArchiveIfNeeded, getTodayKey } from "../services/archive";
 
 export function useAppData() {
   const [db_data, setDbData] = useState(null);
@@ -188,7 +188,7 @@ export function useAppData() {
     const built = buildCSV(db_data);
     if (built) {
       const { csv, rowCount, startDate, endDate } = built;
-      await addDoc(collection(db, "archives"), { weekMonday: getThisWeekMonday(), archivedOn: todayStr(), rowCount, startDate, endDate, csv, note: "Sıfırlamadan əvvəl arxiv" });
+      await addDoc(collection(db, "archives"), { weekMonday: getTodayKey(), archivedOn: todayStr(), rowCount, startDate, endDate, csv, note: "Sıfırlamadan əvvəl arxiv" });
     }
     await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {} });
     setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
