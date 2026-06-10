@@ -54,7 +54,7 @@ export default function App() {
     </div>
   );
 
-  const ownerTabs = [["dashboard","İdarə paneli"],["reports","Hesabatlar"],["edit","Mağazaları tənzimlə"],["shops-mgr","Mağaza əlavə et"],["parametrler","Parametrlər"]];
+  const ownerTabs = [["dashboard","Satış"],["reports","Hesabatlar"],["edit","Mağazaları tənzimlə"],["shops-mgr","Mağaza əlavə et"],["parametrler","Parametrlər"]];
 
   return (
     <div style={c.wrap}>
