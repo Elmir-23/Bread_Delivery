@@ -359,23 +359,25 @@ const saveHandover = async (amount) => {
   const TODAY = todayStr();
   const amt = parseFloat(amount) || 0;
   if (amt <= 0) { toast$("Məbləğ daxil edin"); return; }
-
   const handovers = { ...(db_data.handovers || {}) };
   handovers[TODAY] = amt;
-
   const allDates = [...new Set([
     ...Object.keys(db_data.debtPayments || {}),
     ...Object.keys(db_data.expenses || {}),
     ...Object.keys(handovers),
   ])].sort();
-
-  let kassa = 0;
+  let kassa = db_data.kassaAdjustment || 0;
   allDates.forEach(date => {
     const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
     const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
     const tehvil = handovers[date] || 0;
     kassa += yigilan - exp - tehvil;
   });
+  const newKassaBalance = parseFloat(kassa.toFixed(2));
+  await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+  logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
+  toast$("Təhvil saxlanıldı ✓");
+};
 
   const newKassaBalance = parseFloat(kassa.toFixed(2));
   await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
