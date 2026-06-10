@@ -252,8 +252,7 @@ export function useAppData(userEmail) {
         debtsBefore: db_data.debts || {},
       });
 
-      await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });
-      setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
+      await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });      setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
       const list = await loadArchives(); setArchives(list);
       toast$("✓ Arxivləndi və sıfırlandı");
     } catch (e) {
