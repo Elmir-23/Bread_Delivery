@@ -18,8 +18,22 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
   const totHandover = Object.entries(db_data.handovers || {})
     .filter(([d]) => d >= s && d <= t)
     .reduce((a, [, v]) => a + v, 0);
-
-  const kassaBalance = db_data.kassaBalance || 0;
+ 
+ const kassaBalance = (() => {
+  const allDates = [...new Set([
+    ...Object.keys(db_data.debtPayments || {}),
+    ...Object.keys(db_data.expenses || {}),
+    ...Object.keys(db_data.handovers || {}),
+  ])].sort();
+  let kassa = 0;
+  allDates.forEach(date => {
+    const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+    const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+    const tehvil = db_data.handovers?.[date] || 0;
+    kassa += yigilan - exp - tehvil;
+  });
+  return parseFloat(kassa.toFixed(2));
+})();
 
   const revs = db_data.shops
     .map((shop, i) => ({ name: shop.name, rev: ss[i]?.rev || 0 }))
