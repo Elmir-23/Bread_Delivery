@@ -379,6 +379,27 @@ const saveHandover = async (amount) => {
   toast$("Təhvil saxlanıldı ✓");
 };
 
+  const saveKassaAdjustment = async (amount) => {
+  const amt = parseFloat(amount);
+  if (isNaN(amt)) { toast$("Düzgün məbləğ daxil edin"); return; }
+  const allDates = [...new Set([
+    ...Object.keys(db_data.debtPayments || {}),
+    ...Object.keys(db_data.expenses || {}),
+    ...Object.keys(db_data.handovers || {}),
+  ])].sort();
+  let kassa = amt;
+  allDates.forEach(date => {
+    const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+    const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+    const tehvil = db_data.handovers?.[date] || 0;
+    kassa += yigilan - exp - tehvil;
+  });
+  const newKassaBalance = parseFloat(kassa.toFixed(2));
+  await upd({ ...db_data, kassaAdjustment: amt, kassaBalance: newKassaBalance });
+  logAction("kassa_adjustment", userEmail, { amount: amt, kassaBalance: newKassaBalance });
+  toast$("Kassa yeniləndi ✓");
+};
+
   const newKassaBalance = parseFloat(kassa.toFixed(2));
   await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
   logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
