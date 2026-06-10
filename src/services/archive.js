@@ -52,7 +52,7 @@ export function buildCSV(data) {
   return { csv, rowCount, startDate: allDates[0], endDate: allDates[allDates.length - 1] };
 }
 
-export function getThisWeekMonday() {
+export function getTodayKey() {
   const d = new Date();
   const day = d.getDay();
   const diff = (day === 0) ? -6 : 1 - day;
@@ -68,7 +68,7 @@ export async function loadArchives() {
 }
 
 export async function triggerArchiveIfNeeded(data) {
-  const thisMonday = getThisWeekMonday();
+  const thisMonday = getTodayKey();
   const snap = await getDocs(collection(db, "archives"));
   const alreadyDone = snap.docs.some(d => d.data().weekMonday === thisMonday);
   if (alreadyDone) return;
