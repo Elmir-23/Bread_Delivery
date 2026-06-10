@@ -1,7 +1,11 @@
+import { useState, useEffect } from "react";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "./firebase";
 import { useAppData } from "./hooks/useAppData";
 import { todayStr } from "./utils/dates";
 import { c } from "./styles/styles";
 import { CSS } from "./styles/global";
+import Login from "./components/Login";
 import ShopsScreen from "./components/delivery/ShopsScreen";
 import SessionScreen from "./components/delivery/SessionScreen";
 import EntryForm from "./components/delivery/EntryForm";
@@ -14,7 +18,30 @@ import EditSection from "./components/owner/EditSection";
 import ShopsMgr from "./components/owner/ShopsMgr";
 import Parametrler from "./components/owner/Parametrler";
 
+const OWNER_EMAILS = ["sahmar@gmail.com", "elmirallahverdi@gmail.com"];
+
 export default function App() {
+  const [user, setUser] = useState(undefined);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, u => setUser(u));
+    return () => unsub();
+  }, []);
+
+  if (user === undefined) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+      <div style={{ fontSize: 14, color: "var(--text2)" }}>Yüklənir…</div>
+    </div>
+  );
+
+  if (!user) return <Login />;
+
+  const isOwner = OWNER_EMAILS.includes(user.email);
+
+  return <AppInner isOwner={isOwner} userEmail={user.email} onSignOut={() => signOut(auth)} />;
+}
+
+function AppInner({ isOwner, userEmail, onSignOut }) {
   const {
     db_data, loading, tab, setTab, view, setView,
     selShop, setSelShop, selSess, setSelSess,
@@ -44,7 +71,7 @@ export default function App() {
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
     savePrices, changePin,
-  } = useAppData();
+  } = useAppData(isOwner);
 
   const TODAY = todayStr();
 
@@ -55,6 +82,10 @@ export default function App() {
   );
 
   const ownerTabs = [["dashboard","Satış"],["reports","Hesabatlar"],["edit","Mağazaları tənzimlə"],["shops-mgr","Mağaza əlavə et"],["parametrler","Parametrlər"]];
+
+  const navTabs = isOwner
+    ? [["delivery","🚚","Çatdırılma"],["borclar","💰","Borclar"],["hesabat","📊","Çörək Hesabatı"],["owner","🔐","Sahibkar"]]
+    : [["delivery","🚚","Çatdırılma"],["borclar","💰","Borclar"],["hesabat","📊","Çörək Hesabatı"]];
 
   return (
     <div style={c.wrap}>
@@ -78,7 +109,7 @@ export default function App() {
       )}
 
       <div style={c.nav}>
-        {[["delivery","🚚","Çatdırılma"],["borclar","💰","Borclar"],["hesabat","📊","Çörək Hesabatı"],["owner","🔐","Sahibkar"]].map(([key,icon,lbl]) => (
+        {navTabs.map(([key,icon,lbl]) => (
           <button key={key} style={c.navBtn(tab===key)} onClick={() => { setTab(key); if (key==="delivery") { setView("shops"); setExpView("list"); } }}>
             <span style={{ fontSize: 18 }}>{icon}</span>{lbl}
           </button>
@@ -110,12 +141,12 @@ export default function App() {
       {tab === "borclar" && <Borclar db_data={db_data} />}
       {tab === "hesabat" && <ChorekHesabat db_data={db_data} />}
 
-      {tab === "owner" && (
+      {tab === "owner" && isOwner && (
         <>
           {!ownerUnlocked && (
             <div style={{ minHeight: 320, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "2rem" }}>
-              <div style={{ fontSize: 18, fontWeight: 500 }}>Owner access</div>
-              <div style={{ fontSize: 13, color: "var(--text2)" }}>Enter your PIN</div>
+              <div style={{ fontSize: 18, fontWeight: 500 }}>Sahibkar paneli</div>
+              <div style={{ fontSize: 13, color: "var(--text2)" }}>{userEmail}</div>
               <div style={{ display: "flex", gap: 12, margin: "4px 0" }}>{[0,1,2,3].map(i => <div key={i} style={c.pinDot(i < pinBuf.length)}></div>)}</div>
               <div style={{ color: "#dc2626", fontSize: 13, minHeight: 18 }}>{pinErr}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, width: 220 }}>
@@ -137,12 +168,19 @@ export default function App() {
               {ownerTab === "edit" && <EditSection db_data={db_data} editDate={editDate} setEditDate={setEditDate} editView={editView} setEditView={setEditView} editSelShop={editSelShop} setEditSelShop={setEditSelShop} editSelSess={editSelSess} editEntryVals={editEntryVals} adjEdit={adjEdit} saveEditEntry={saveEditEntry} openEditEntry={openEditEntry} editCollected={editCollected} setEditCollected={setEditCollected} saveEditCollected={saveEditCollected} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} />}
               {ownerTab === "shops-mgr" && <ShopsMgr db_data={db_data} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
               {ownerTab === "parametrler" && <Parametrler db_data={db_data} archives={archives} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} toast$={toast$} />}
-              <div style={{ padding: "0 1rem 1.5rem" }}>
+              <div style={{ padding: "0 1rem 1.5rem", display: "flex", gap: 8 }}>
                 <button style={{ ...c.outlineBtn, color: "var(--text2)" }} onClick={() => { setOwnerUnlocked(false); setPinBuf(""); }}>🔒 Kilidlə</button>
+                <button style={{ ...c.outlineBtn, color: "#dc2626", borderColor: "#fca5a5" }} onClick={onSignOut}>Çıxış</button>
               </div>
             </div>
           )}
         </>
+      )}
+
+      {!isOwner && tab === "delivery" && view === "shops" && (
+        <div style={{ padding: "0 1rem 1rem", textAlign: "right" }}>
+          <button onClick={onSignOut} style={{ fontSize: 12, color: "var(--text2)", background: "none", border: "none", cursor: "pointer" }}>Çıxış →</button>
+        </div>
       )}
     </div>
   );
