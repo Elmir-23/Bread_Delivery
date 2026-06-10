@@ -3,7 +3,7 @@ import { fmtDateShort } from "../../utils/dates";
 
 export default function Parametrler({ db_data, archives, settPrices, setSettPrices, savePrices, pinOld, setPinOld, pinNew, setPinNew, changePin, resetConfirm, setResetConfirm, resetPinBuf, setResetPinBuf, resetPinErr, setResetPinErr, resetAllData, toast$ }) {
   const downloadArchive = (arc) => {
-    const blob = new Blob([arc.csv], { type: "text/csv" });
+    const blob = new Blob(["\uFEFF" + arc.csv], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `bread-arxiv-${arc.weekMonday}.csv`;
