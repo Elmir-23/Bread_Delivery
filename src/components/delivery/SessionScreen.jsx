@@ -19,13 +19,12 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
       totalLD += d.leftover?.damiryolu || 0;
     }
   });
+
   const netK = Math.max(0, totalGK - totalLK);
   const netD = Math.max(0, totalGD - totalLD);
   const givenVal = totalGK * kPrice + totalGD * rPrice;
   const leftVal = totalLK * kPrice + totalLD * rPrice;
-  const todayYigilan = Object.values(db_data.debtPayments?.[TODAY]?.[selShop] !== undefined 
-   ? { [selShop]: db_data.debtPayments?.[TODAY]?.[selShop] } 
-   : {}).reduce((a, b) => a + b, 0);
+  const todayYigilan = db_data.debtPayments?.[TODAY]?.[selShop] || 0;
   const todayDebt = givenVal - leftVal - todayYigilan;
   const hasAny = totalGK > 0 || totalGD > 0;
 
@@ -129,9 +128,17 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
                     <td style={{ ...tdS(true), color: "var(--success-text)" }}>−{leftVal.toFixed(2)} ₼</td>
                   </tr>
                 )}
+                {todayYigilan > 0 && (
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ ...tdS(false), color: "var(--text2)", fontSize: 11 }}>Bu gün yığılan</td>
+                    <td style={{ ...tdS(true), color: "var(--success-text)" }}>−{todayYigilan.toFixed(2)} ₼</td>
+                  </tr>
+                )}
                 <tr>
                   <td style={{ ...tdS(false), fontWeight: 600, fontSize: 11 }}>Bu günkü borc</td>
-                  <td style={{ ...tdS(true), fontWeight: 600, color: "#dc2626" }}>{todayDebt.toFixed(2)} ₼</td>
+                  <td style={{ ...tdS(true), fontWeight: 600, color: todayDebt > 0 ? "#dc2626" : todayDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
+                    {todayDebt.toFixed(2)} ₼
+                  </td>
                 </tr>
               </tbody>
             </table>
