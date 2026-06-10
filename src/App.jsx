@@ -17,8 +17,10 @@ import Reports from "./components/owner/Reports";
 import EditSection from "./components/owner/EditSection";
 import ShopsMgr from "./components/owner/ShopsMgr";
 import Parametrler from "./components/owner/Parametrler";
+import Developer from "./components/owner/Developer";
 
 const OWNER_EMAILS = ["sahmar@gmail.com", "elmirallahverdi@gmail.com"];
+const DEVELOPER_EMAILS = ["elmirallahverdi@gmail.com"];
 
 export default function App() {
   const [user, setUser] = useState(undefined);
@@ -30,6 +32,7 @@ export default function App() {
 
   if (user === undefined) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)" }}>
+      <style>{CSS}</style>
       <div style={{ fontSize: 14, color: "var(--text2)" }}>Yüklənir…</div>
     </div>
   );
@@ -37,11 +40,12 @@ export default function App() {
   if (!user) return <Login />;
 
   const isOwner = OWNER_EMAILS.includes(user.email);
+  const isDeveloper = DEVELOPER_EMAILS.includes(user.email);
 
-  return <AppInner isOwner={isOwner} userEmail={user.email} onSignOut={() => signOut(auth)} />;
+  return <AppInner isOwner={isOwner} isDeveloper={isDeveloper} userEmail={user.email} onSignOut={() => signOut(auth)} />;
 }
 
-function AppInner({ isOwner, userEmail, onSignOut }) {
+function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
   const {
     db_data, loading, tab, setTab, view, setView,
     selShop, setSelShop, selSess, setSelSess,
@@ -71,7 +75,7 @@ function AppInner({ isOwner, userEmail, onSignOut }) {
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
     savePrices, changePin,
-  } = useAppData(isOwner);
+  } = useAppData(userEmail);
 
   const TODAY = todayStr();
 
@@ -81,7 +85,14 @@ function AppInner({ isOwner, userEmail, onSignOut }) {
     </div>
   );
 
-  const ownerTabs = [["dashboard","Satış"],["reports","Hesabatlar"],["edit","Mağazaları tənzimlə"],["shops-mgr","Mağaza əlavə et"],["parametrler","Parametrlər"]];
+  const ownerTabs = [
+    ["dashboard", "Satış"],
+    ["reports", "Hesabatlar"],
+    ["edit", "Mağazaları tənzimlə"],
+    ["shops-mgr", "Mağaza əlavə et"],
+    ["parametrler", "Parametrlər"],
+    ...(isDeveloper ? [["developer", "🛠 Developer"]] : []),
+  ];
 
   const navTabs = isOwner
     ? [["delivery","🚚","Çatdırılma"],["borclar","💰","Borclar"],["hesabat","📊","Çörək Hesabatı"],["owner","🔐","Sahibkar"]]
@@ -120,16 +131,11 @@ function AppInner({ isOwner, userEmail, onSignOut }) {
         <>
           {view === "shops" && (
             <ShopsScreen
-              db_data={db_data}
-              TODAY={TODAY}
-              setSelShop={setSelShop}
-              setView={setView}
-              expView={expView}
-              setExpView={setExpView}
-              expVals={expVals}
-              setExpVals={setExpVals}
-              saveExpense={saveExpense}
-              deleteExpense={deleteExpense}
+              db_data={db_data} TODAY={TODAY}
+              setSelShop={setSelShop} setView={setView}
+              expView={expView} setExpView={setExpView}
+              expVals={expVals} setExpVals={setExpVals}
+              saveExpense={saveExpense} deleteExpense={deleteExpense}
             />
           )}
           {view === "session" && <SessionScreen db_data={db_data} TODAY={TODAY} selShop={selShop} setView={setView} setCollectedInput={setCollectedInput} openDeliveryEntry={openDeliveryEntry} />}
@@ -167,9 +173,9 @@ function AppInner({ isOwner, userEmail, onSignOut }) {
               {ownerTab === "reports" && <Reports db_data={db_data} repPeriod={repPeriod} setRepPeriod={setRepPeriod} calcStats={calcStats} shopKura={shopKura} shopRail={shopRail} toast$={toast$} />}
               {ownerTab === "edit" && <EditSection db_data={db_data} editDate={editDate} setEditDate={setEditDate} editView={editView} setEditView={setEditView} editSelShop={editSelShop} setEditSelShop={setEditSelShop} editSelSess={editSelSess} editEntryVals={editEntryVals} adjEdit={adjEdit} saveEditEntry={saveEditEntry} openEditEntry={openEditEntry} editCollected={editCollected} setEditCollected={setEditCollected} saveEditCollected={saveEditCollected} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} />}
               {ownerTab === "shops-mgr" && <ShopsMgr db_data={db_data} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
-              {ownerTab === "parametrler" && <Parametrler db_data={db_data} archives={archives} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} toast$={toast$} />}
-              <div style={{ padding: "0 1rem 1.5rem", display: "flex", gap: 8 }}>
-                <button style={{ ...c.outlineBtn, color: "var(--text2)" }} onClick={() => { setOwnerUnlocked(false); setPinBuf(""); }}>🔒 Kilidlə</button>
+              {ownerTab === "parametrler" && <Parametrler db_data={db_data} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} />}
+              {ownerTab === "developer" && isDeveloper && <Developer db_data={db_data} archives={archives} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} toast$={toast$} />}
+              <div style={{ padding: "0 1rem 1.5rem" }}>
                 <button style={{ ...c.outlineBtn, color: "#dc2626", borderColor: "#fca5a5" }} onClick={onSignOut}>Çıxış</button>
               </div>
             </div>
@@ -177,8 +183,8 @@ function AppInner({ isOwner, userEmail, onSignOut }) {
         </>
       )}
 
-      {!isOwner && tab === "delivery" && view === "shops" && (
-        <div style={{ padding: "0 1rem 1rem", textAlign: "right" }}>
+      {!isOwner && (
+        <div style={{ padding: "0.5rem 1rem", textAlign: "right" }}>
           <button onClick={onSignOut} style={{ fontSize: 12, color: "var(--text2)", background: "none", border: "none", cursor: "pointer" }}>Çıxış →</button>
         </div>
       )}
