@@ -31,7 +31,7 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-      const tehvil = db_data.handovers?.[date] || 0;
+      const tehvil = db_data.handovers?.[date] !== undefined ? db_data.handovers[date] : 0;
       kassa += yigilan - exp - tehvil;
     });
     return parseFloat(kassa.toFixed(2));
