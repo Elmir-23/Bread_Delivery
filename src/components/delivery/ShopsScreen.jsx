@@ -65,72 +65,7 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
         })}
       </div>
 
-      {shopRows.length > 0 && (
-        <div style={{ marginTop: "1.5rem" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Günün xülasəsi</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-              <thead>
-                <tr>
-                  <th rowSpan={2} style={{ ...th(false, true), verticalAlign: "middle" }}>Mağaza</th>
-                  <th rowSpan={2} style={{ ...th(true), verticalAlign: "middle" }}>Sessiya</th>
-                  <th colSpan={3} style={{ ...th(true), borderBottom: "none" }}>Verilən</th>
-                  <th colSpan={3} style={{ ...th(true), borderBottom: "none" }}>Qaytarılan</th>
-                </tr>
-                <tr>
-                  <th style={th(true)}>K</th>
-                  <th style={th(true)}>D</th>
-                  <th style={th(true)}>Cəm</th>
-                  <th style={th(true)}>K</th>
-                  <th style={th(true)}>D</th>
-                  <th style={th(true)}>Cəm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shopRows.map(({ shop, rows, totGK, totGD, totLK, totLD }, ri) => (
-                  <>
-                    {rows.filter(r => !r.empty).map((r, si) => (
-                      <tr key={r.sess.id} style={{ background: ri % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
-                        {si === 0 && (
-                          <td rowSpan={rows.filter(r => !r.empty).length + 1} style={{ ...td(false, true), verticalAlign: "middle", borderRight: "1px solid var(--border)" }}>
-                            {shop.name}
-                          </td>
-                        )}
-                        <td style={{ ...td(true), fontSize: 10, color: "var(--text2)" }}>{r.sess.icon} {r.sess.label}</td>
-                        <td style={td(true)}>{r.gK || "—"}</td>
-                        <td style={td(true)}>{r.gD || "—"}</td>
-                        <td style={{ ...td(true), fontWeight: 600 }}>{(r.gK + r.gD) || "—"}</td>
-                        <td style={td(true)}>{r.lK || "—"}</td>
-                        <td style={td(true)}>{r.lD || "—"}</td>
-                        <td style={{ ...td(true), fontWeight: 600 }}>{(r.lK + r.lD) || "—"}</td>
-                      </tr>
-                    ))}
-                    <tr style={{ borderBottom: "2px solid var(--border2)" }}>
-                      <td style={{ ...td(true), fontWeight: 700, background: "var(--bg2)", fontSize: 10 }}>Cəmi</td>
-                      <td style={{ ...td(true), fontWeight: 700 }}>{totGK}</td>
-                      <td style={{ ...td(true), fontWeight: 700 }}>{totGD}</td>
-                      <td style={{ ...td(true), fontWeight: 700 }}>{totGK + totGD}</td>
-                      <td style={{ ...td(true), fontWeight: 700 }}>{totLK || "—"}</td>
-                      <td style={{ ...td(true), fontWeight: 700 }}>{totLD || "—"}</td>
-                      <td style={{ ...td(true), fontWeight: 700 }}>{(totLK + totLD) || "—"}</td>
-                    </tr>
-                  </>
-                ))}
-                <tr style={{ background: "var(--bg2)", borderTop: "2px solid var(--border2)" }}>
-                  <td style={{ ...td(false, true), fontWeight: 700 }}>Ümumi</td>
-                  <td style={{ ...td(true), fontSize: 10, color: "var(--text2)" }}>—</td>
-                  <td style={{ ...td(true), fontWeight: 700 }}>{grandGK}</td>
-                  <td style={{ ...td(true), fontWeight: 700 }}>{grandGD}</td>
-                  <td style={{ ...td(true), fontWeight: 700 }}>{grandGK + grandGD}</td>
-                  <td style={{ ...td(true), fontWeight: 700 }}>{grandLK || "—"}</td>
-                  <td style={{ ...td(true), fontWeight: 700 }}>{grandLD || "—"}</td>
-                  <td style={{ ...td(true), fontWeight: 700 }}>{(grandLK + grandLD) || "—"}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
 
       <div style={{ marginTop: "1.5rem" }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🚗 Maşın xərcləri</div>
