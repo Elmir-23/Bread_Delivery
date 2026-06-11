@@ -319,8 +319,8 @@ export function useAppData(userEmail) {
     toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
   };
 
-  const saveHandover = async (amount) => {
-    const TODAY = todayStr();
+  const saveHandover = async (amount, dateOverride) => {
+    const TODAY = dateOverride || todayStr();
     const amt = parseFloat(amount) || 0;
     if (amt < 0) { toast$("Məbləğ mənfi ola bilməz"); return; }
     const handovers = { ...(db_data.handovers || {}) };
