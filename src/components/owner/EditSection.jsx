@@ -10,15 +10,74 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
 
   if (editView === "date-shops") {
     const sd = db_data.deliveries?.[editDate] || {};
+
+    // Günün xülasəsi hesablamaları
+    let dayRev = 0;
+    Object.entries(sd).forEach(([idx, sess]) => {
+      const i = parseInt(idx);
+      SESS.forEach(sv => {
+        const d = sess[sv.id]; if (!d) return;
+        const kPrice = db_data.shops[i]?.kura ?? db_data.prices?.kura ?? 0.55;
+        const rPrice = db_data.shops[i]?.damiryolu ?? db_data.prices?.damiryolu ?? 0.60;
+        const net = Math.max(0, (d.given?.kura || 0) - (sv.id === "morning" ? (d.leftover?.kura || 0) : 0));
+        const netr = Math.max(0, (d.given?.damiryolu || 0) - (sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0));
+        dayRev += net * kPrice + netr * rPrice;
+      });
+    });
+    const dayCollected = Object.values(db_data.debtPayments?.[editDate] || {}).reduce((a, b) => a + b, 0);
+    const dayExp = (db_data.expenses?.[editDate] || []).reduce((a, e) => a + e.amount, 0);
+    const existingHandover = db_data.handovers?.[editDate] || 0;
+
     return (
       <div style={c.pad}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Tarixə görə çatdırılmanı düzəlt</div>
+
+        {/* Tarix naviqasiyası */}
         <div style={c.dateRow}>
           <button style={c.dateBtn(false)} onClick={() => setEditDate(d => addDays(d, -1))}>‹</button>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{isEditToday ? "Bu gün — " : ""}{fmtDateShort(editDate)}</span>
           <button style={c.dateBtn(isEditToday)} onClick={() => { if (!isEditToday) setEditDate(d => addDays(d, 1)); }}>›</button>
         </div>
-        <div style={{ ...c.shopGrid, marginTop: 12 }}>
+
+        {/* Günün xülasəsi */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14, marginBottom: 14 }}>
+          <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Ümumi satış</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{dayRev.toFixed(2)} ₼</div>
+          </div>
+          <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Yığılan borc</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: dayCollected > 0 ? "var(--success-text)" : "var(--text)" }}>{dayCollected > 0 ? dayCollected.toFixed(2) + " ₼" : "—"}</div>
+          </div>
+          <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: dayExp > 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Xərclər</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: dayExp > 0 ? "#dc2626" : "var(--text)" }}>{dayExp > 0 ? "-" + dayExp.toFixed(2) + " ₼" : "—"}</div>
+          </div>
+          <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Sahibkara verilən</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{existingHandover > 0 ? existingHandover.toFixed(2) + " ₼" : "—"}</div>
+          </div>
+        </div>
+
+        {/* Sahibkara verilən məbləği düzəlt */}
+        <div style={{ ...c.block, marginBottom: 14 }}>
+          <div style={c.blockTitle}>💵 Sahibkara verilən məbləği düzəlt</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number" min={0} step={0.01}
+              value={handoverEditVal}
+              onChange={e => setHandoverEditVal(e.target.value)}
+              placeholder={existingHandover > 0 ? existingHandover.toFixed(2) : "0.00"}
+              style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+            />
+            <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
+          </div>
+          <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveHandover(handoverEditVal, editDate); setHandoverEditVal(""); }}>Saxla</button>
+        </div>
+
+        {/* Mağaza siyahısı */}
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağazalar</div>
+        <div style={{ ...c.shopGrid }}>
           {db_data.shops.map((s, i) => {
             const done = SESS.every(x => sd[i]?.[x.id] && (sd[i][x.id].given?.kura || sd[i][x.id].given?.damiryolu));
             return (
@@ -38,7 +97,6 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
     const existingCollected = db_data.debtPayments?.[editDate]?.[editSelShop] || 0;
     const collKey = `${editDate}-${editSelShop}`;
     const collVal = editCollected[collKey] !== undefined ? editCollected[collKey] : String(existingCollected || "");
-    const existingHandover = db_data.handovers?.[editDate] || 0;
 
     return (
       <div>
@@ -80,25 +138,6 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
             </div>
             {existingCollected > 0 && <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 6 }}>Cari: {existingCollected.toFixed(2)} ₼</div>}
             <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditCollected(editSelShop, editDate, collVal)}>Saxla</button>
-          </div>
-
-          {/* Sahibkara verilən məbləği düzəlt */}
-          <div style={{ ...c.block, marginTop: 10 }}>
-            <div style={c.blockTitle}>💵 Sahibkara verilən məbləği düzəlt</div>
-            <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
-              Cari: <strong>{existingHandover.toFixed(2)} ₼</strong>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input
-                type="number" min={0} step={0.01}
-                value={handoverEditVal}
-                onChange={e => setHandoverEditVal(e.target.value)}
-                placeholder={existingHandover.toFixed(2)}
-                style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-              />
-              <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
-            </div>
-            <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveHandover(handoverEditVal, editDate); setHandoverEditVal(""); }}>Saxla</button>
           </div>
 
           {/* Cari borcu düzəlt */}
