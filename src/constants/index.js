@@ -17,14 +17,26 @@ export const EXP_CATS = [
 ];
 
 export const DEF_SHOPS = [
-  "Rza","Murad","Alasgar","50_Gapik","Fuad","Elbrus",
-  "Ramal","Suraddin","Khila","Kolya","Nur-S","Xila",
-  "Shaig","Kafe","Selimxan"
+  { name: "İbrahim",     kura: 0.55, damiryolu: 0.60 },
+  { name: "Rza",         kura: 0.55, damiryolu: 0.60 },
+  { name: "Ələsgər",     kura: 0.55, damiryolu: 0.55 },
+  { name: "Murad",       kura: 0.55, damiryolu: 0.55 },
+  { name: "Nur-S",       kura: 0.55, damiryolu: 0.55 },
+  { name: "Fuad",        kura: 0.55, damiryolu: 0.60 },
+  { name: "Şaiq",        kura: 0.55, damiryolu: 0.60 },
+  { name: "Sürəddin",    kura: 0.55, damiryolu: 0.55 },
+  { name: "Ramal",       kura: 0.55, damiryolu: 0.60 },
+  { name: "Araz-Elbrus", kura: 0.50, damiryolu: 0.55 },
+  { name: "Xilə",        kura: 0.55, damiryolu: 0.60 },
+  { name: "50-Qəpik",    kura: 0.55, damiryolu: 0.55 },
+  { name: "Kolya",       kura: 0.55, damiryolu: 0.60 },
+  { name: "Kafe",        kura: 0.60, damiryolu: 0.60 },
+  { name: "Seli",        kura: 0.00, damiryolu: 0.00 },
 ];
 
 export const DEFAULT_DB = {
   pin: "1234",
-  prices: { kura: 0.55, damiryolu: 0.65 },
+  prices: { kura: 0.55, damiryolu: 0.60 },
   deliveries: {},
   debts: {},
   debtPayments: {},
@@ -32,5 +44,5 @@ export const DEFAULT_DB = {
   handovers: {},
   kassaBalance: 0,
   kassaAdjustment: 0,
-  shops: DEF_SHOPS.map(n => ({ name: n, kura: null, damiryolu: null }))
+  shops: DEF_SHOPS.map(n => ({ name: n.name, kura: n.kura, damiryolu: n.damiryolu }))
 };
