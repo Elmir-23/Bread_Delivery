@@ -4,9 +4,10 @@ import { todayStr, addDays, fmtDateShort } from "../../utils/dates";
 import { SESS } from "../../constants";
 import EntryForm from "../delivery/EntryForm";
 
-export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover }) {
+export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment }) {
   const isEditToday = editDate === todayStr();
   const [handoverEditVal, setHandoverEditVal] = useState("");
+  const [kassaEditVal, setKassaEditVal] = useState("");
 
   if (editView === "date-shops") {
     const sd = db_data.deliveries?.[editDate] || {};
@@ -42,11 +43,11 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
         {/* Günün xülasəsi */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14, marginBottom: 14 }}>
           <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Ümumi satış</div>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Dövriyyə</div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{dayRev.toFixed(2)} ₼</div>
           </div>
           <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Yığılan borc</div>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Yığılan pul</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: dayCollected > 0 ? "var(--success-text)" : "var(--text)" }}>{dayCollected > 0 ? dayCollected.toFixed(2) + " ₼" : "—"}</div>
           </div>
           <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: dayExp > 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
@@ -54,14 +55,14 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
             <div style={{ fontSize: 16, fontWeight: 700, color: dayExp > 0 ? "#dc2626" : "var(--text)" }}>{dayExp > 0 ? "-" + dayExp.toFixed(2) + " ₼" : "—"}</div>
           </div>
           <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Sahibkara verilən</div>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{existingHandover > 0 ? existingHandover.toFixed(2) + " ₼" : "—"}</div>
           </div>
         </div>
 
-        {/* Sahibkara verilən məbləği düzəlt */}
-        <div style={{ ...c.block, marginBottom: 14 }}>
-          <div style={c.blockTitle}>💵 Sahibkara verilən məbləği düzəlt</div>
+        {/* Təhvil verilən məbləği düzəlt */}
+        <div style={{ ...c.block, marginBottom: 10 }}>
+          <div style={c.blockTitle}>💵 Təhvil verilən məbləği düzəlt</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <input
               type="number" min={0} step={0.01}
@@ -73,6 +74,25 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
             <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
           </div>
           <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveHandover(handoverEditVal, editDate); setHandoverEditVal(""); }}>Saxla</button>
+        </div>
+
+        {/* Kassa balansını düzəlt */}
+        <div style={{ ...c.block, marginBottom: 14 }}>
+          <div style={c.blockTitle}>💵 Kassa balansını düzəlt</div>
+          <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
+            Cari kassa: <strong>{(db_data.kassaBalance || 0).toFixed(2)} ₼</strong>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number" step={0.01}
+              value={kassaEditVal}
+              onChange={e => setKassaEditVal(e.target.value)}
+              placeholder={(db_data.kassaBalance || 0).toFixed(2)}
+              style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+            />
+            <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
+          </div>
+          <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveKassaAdjustment(kassaEditVal); setKassaEditVal(""); }}>Saxla</button>
         </div>
 
         {/* Mağaza siyahısı */}
