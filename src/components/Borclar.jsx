@@ -71,28 +71,22 @@ export default function Borclar({ db_data }) {
       </div>
 
       {/* Kartlar */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
         <div style={{ ...c.metric }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: umumiBorc > 0 ? "#dc2626" : umumiBorc < 0 ? "var(--success-text)" : "var(--text)" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: umumiBorc > 0 ? "#dc2626" : umumiBorc < 0 ? "var(--success-text)" : "var(--text)" }}>
             {umumiBorc.toFixed(2)} ₼
           </div>
         </div>
-        <div style={{ ...c.metric }}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Bugünkü borc</div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: totBugun > 0 ? "#dc2626" : "var(--text)" }}>
-            {totBugun > 0 ? totBugun.toFixed(2) + " ₼" : "—"}
-          </div>
-        </div>
         <div style={{ ...c.metricGreen }}>
-          <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Bu gün yığılan</div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: "var(--collected-text)" }}>
+          <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--collected-text)" }}>
             {totYigilan > 0 ? totYigilan.toFixed(2) + " ₼" : "—"}
           </div>
         </div>
         <div style={{ ...c.metric }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan</div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: totReturn > 0 ? "var(--success-text)" : "var(--text)" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: totReturn > 0 ? "var(--success-text)" : "var(--text)" }}>
             {totReturn > 0 ? `-${totReturn.toFixed(2)} ₼` : "—"}
           </div>
         </div>
