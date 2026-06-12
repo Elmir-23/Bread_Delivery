@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { c } from "../../styles/styles";
 import { todayStr, addDays } from "../../utils/dates";
-import { EXP_CATS } from "../../constants";
+import { EXP_CATS, SESS } from "../../constants";
 
 export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment }) {
   const [handoverInput, setHandoverInput] = useState("");
@@ -20,6 +20,24 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
   const totHandover = Object.entries(db_data.handovers || {})
     .filter(([d]) => d >= s && d <= t)
     .reduce((a, [, v]) => a + v, 0);
+
+  // Qaytarılan çörəyin dəyəri
+  const totReturnVal = (() => {
+    let val = 0;
+    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+      if (date < s || date > t) return;
+      Object.entries(shops).forEach(([idx, sess]) => {
+        const i = parseInt(idx);
+        const d = sess["morning"]; if (!d) return;
+        const lk = d.leftover?.kura || 0;
+        const lr = d.leftover?.damiryolu || 0;
+        const kPrice = db_data.shops[i]?.kura ?? db_data.prices?.kura ?? 0.55;
+        const rPrice = db_data.shops[i]?.damiryolu ?? db_data.prices?.damiryolu ?? 0.60;
+        val += lk * kPrice + lr * rPrice;
+      });
+    });
+    return parseFloat(val.toFixed(2));
+  })();
 
   const kassaBalance = (() => {
     const allDates = [...new Set([
@@ -59,36 +77,38 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         <div style={{ fontSize: 28, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
       </div>
 
-      {/* 2x2 grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        <div style={c.metric}>
+      {/* Ümumi borc başlıq */}
+      <div style={{ ...c.metric, marginBottom: 8, border: `1px solid ${totalDebt > 0 ? "#fca5a5" : "var(--border)"}` }}>
+        <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
             {totalDebt.toFixed(2)} ₼
           </div>
         </div>
-        <div style={{ ...c.metricGreen }}>
-          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--collected-text)" }}>
-            {totCollected.toFixed(2)} ₼
+        {/* Yığılan + Qaytarılan */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+          <div style={{ background: "var(--bg2)", borderRadius: 10, padding: "8px 10px" }}>
+            <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 2, fontWeight: 600 }}>Yığılan pul</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--collected-text)" }}>
+              {totCollected.toFixed(2)} ₼
+            </div>
           </div>
-        </div>
-        <div style={{ ...c.metric, border: totExp > 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
-          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Xərclər</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: totExp > 0 ? "#dc2626" : "var(--text)" }}>
-            {totExp > 0 ? `-${totExp.toFixed(2)} ₼` : "—"}
-          </div>
-        </div>
-        <div style={c.metric}>
-          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>
-            {totHandover > 0 ? `${totHandover.toFixed(2)} ₼` : "—"}
+          <div style={{ background: "var(--bg2)", borderRadius: 10, padding: "8px 10px" }}>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 2, fontWeight: 600 }}>Qaytarılan çörək</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: totReturnVal > 0 ? "var(--success-text)" : "var(--text)" }}>
+              {totReturnVal > 0 ? `-${totReturnVal.toFixed(2)} ₼` : "—"}
+            </div>
+            {(totLK > 0 || totLR > 0) && (
+              <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
+                K:{totLK} · D:{totLR}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Kassa */}
-      <div style={{ ...c.metric, marginBottom: "1rem", border: `1px solid ${kassaBalance >= 0 ? "var(--border)" : "#fca5a5"}` }}>
+      <div style={{ ...c.metric, marginBottom: 8, border: `1px solid ${kassaBalance >= 0 ? "var(--border)" : "#fca5a5"}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>💵 Kassa</div>
@@ -125,6 +145,42 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
             </div>
           </div>
         )}
+      </div>
+
+      {/* Xərclər */}
+      {totExp > 0 && (
+        <div style={{ ...c.metric, marginBottom: 8, border: "1px solid #fca5a5" }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Xərclər</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#dc2626" }}>-{totExp.toFixed(2)} ₼</div>
+          <div style={{ marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+            {EXP_CATS.filter(cat => {
+              let sum = 0;
+              Object.entries(db_data.expenses || {}).forEach(([date, entries]) => {
+                if (date >= s && date <= t) entries.filter(e => e.cat === cat.id).forEach(e => { sum += e.amount; });
+              });
+              return sum > 0;
+            }).map(cat => {
+              let sum = 0;
+              Object.entries(db_data.expenses || {}).forEach(([date, entries]) => {
+                if (date >= s && date <= t) entries.filter(e => e.cat === cat.id).forEach(e => { sum += e.amount; });
+              });
+              return (
+                <div key={cat.id} style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: "var(--text2)" }}>{cat.icon} {cat.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#dc2626" }}>{sum.toFixed(2)} ₼</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Təhvil verilən */}
+      <div style={{ ...c.metric, marginBottom: "1rem" }}>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>
+          {totHandover > 0 ? `${totHandover.toFixed(2)} ₼` : "—"}
+        </div>
       </div>
 
       {/* Təhvil daxil et */}
@@ -180,33 +236,6 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
           </tbody>
         </table>
       </div>
-
-      {/* Xərclər detalı */}
-      {totExp > 0 && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Xərclər</div>
-          <div style={{ ...c.listCard, marginBottom: "1rem" }}>
-            {EXP_CATS.filter(cat => {
-              let sum = 0;
-              Object.entries(db_data.expenses || {}).forEach(([date, entries]) => {
-                if (date >= s && date <= t) entries.filter(e => e.cat === cat.id).forEach(e => { sum += e.amount; });
-              });
-              return sum > 0;
-            }).map((cat, i, arr) => {
-              let sum = 0;
-              Object.entries(db_data.expenses || {}).forEach(([date, entries]) => {
-                if (date >= s && date <= t) entries.filter(e => e.cat === cat.id).forEach(e => { sum += e.amount; });
-              });
-              return (
-                <div key={cat.id} style={c.listRow(i === arr.length - 1)}>
-                  <span style={{ fontSize: 13 }}>{cat.icon} {cat.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>{sum.toFixed(2)} ₼</span>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
 
       {/* Mağazalar üzrə gəlir */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Mağazalar üzrə gəlir</div>
