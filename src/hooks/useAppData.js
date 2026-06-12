@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "../firebase";
-import { doc, onSnapshot, setDoc, collection, addDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, collection, addDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
 import { buildCSV, loadArchives, triggerArchiveIfNeeded, getTodayKey } from "../services/archive";
@@ -45,11 +45,35 @@ export function useAppData(userEmail) {
 
   useEffect(() => {
     const ref = doc(db, "app", "data");
+    let initialized = false;
+
     const unsub = onSnapshot(ref, (snap) => {
-      if (snap.exists()) { setDbData(snap.data()); }
-      else { setDoc(ref, DEFAULT_DB); setDbData(DEFAULT_DB); }
-      setLoading(false);
+      if (snap.exists()) {
+        initialized = true;
+        setDbData(snap.data());
+        setLoading(false);
+      } else if (!initialized) {
+        // onSnapshot says document doesn't exist — verify with a direct read first
+        getDoc(ref).then(freshSnap => {
+          if (freshSnap.exists()) {
+            // Document actually exists — onSnapshot was wrong (timing/connection issue)
+            // DO NOT overwrite — use the real data
+            initialized = true;
+            setDbData(freshSnap.data());
+          } else {
+            // Confirmed: truly a new database — safe to initialize
+            setDoc(ref, DEFAULT_DB);
+            setDbData(DEFAULT_DB);
+            initialized = true;
+          }
+          setLoading(false);
+        }).catch(e => {
+          console.error("Firestore read error:", e);
+          setLoading(false);
+        });
+      }
     });
+
     return () => unsub();
   }, []);
 
