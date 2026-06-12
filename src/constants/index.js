@@ -11,8 +11,9 @@ export const SESS_WITH_DEBT = [
 
 export const EXP_CATS = [
   { id: "benzin", label: "Benzin", icon: "⛽" },
-  { id: "moyka", label: "Moyka", icon: "🚿" },
+  { id: "moyka", label: "Avtoyuma", icon: "🚿" },
   { id: "baxim", label: "Baxım xərcləri", icon: "🔧" },
+  { id: "maas",    label: "Günlük maaş",      icon: "💵" },
   { id: "diger", label: "Digər", icon: "📝" },
 ];
 
