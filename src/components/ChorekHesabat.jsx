@@ -63,34 +63,51 @@ export default function ChorekHesabat({ db_data }) {
 
       {/* Yuxarıda xülasə kartları */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
+        {/* Verilən — sesssiyalara görə */}
         <div style={c.metric}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>Verilən</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text2)" }}>Kura</span>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>{grandGK}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-            <span style={{ fontSize: 11, color: "var(--text2)" }}>Damiryolu</span>
-            <span style={{ fontSize: 16, fontWeight: 700 }}>{grandGD}</span>
-          </div>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 8, fontWeight: 600, textTransform: "uppercase" }}>Verilən</div>
+          {(() => {
+            const sessTotals = SESS.map(sv => {
+              let k = 0, d = 0;
+              db_data.shops.forEach((_, i) => {
+                Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+                  if (date < s || date > t) return;
+                  const dd = shops[i]?.[sv.id]; if (!dd) return;
+                  k += dd.given?.kura || 0;
+                  d += dd.given?.damiryolu || 0;
+                });
+              });
+              return { sv, k, d };
+            });
+            return sessTotals.map(({ sv, k, d }) => (
+              <div key={sv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: "var(--text2)" }}>{sv.icon} {sv.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>
+                  {(k || d) ? `K:${k} · D:${d}` : "—"}
+                </span>
+              </div>
+            ));
+          })()}
           <div style={{ borderTop: "1px solid var(--border)", marginTop: 6, paddingTop: 6, display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 11, color: "var(--text2)" }}>Cəmi</span>
-            <span style={{ fontSize: 18, fontWeight: 700 }}>{grandGK + grandGD}</span>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>K:{grandGK} · D:{grandGD}</span>
           </div>
         </div>
+
+        {/* Qaytarılan — sadəcə saylar */}
         <div style={c.metric}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>Qaytarılan</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 8, fontWeight: 600, textTransform: "uppercase" }}>Qaytarılan</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 11, color: "var(--text2)" }}>Kura</span>
             <span style={{ fontSize: 16, fontWeight: 700 }}>{grandLK || "—"}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 11, color: "var(--text2)" }}>Damiryolu</span>
             <span style={{ fontSize: 16, fontWeight: 700 }}>{grandLD || "—"}</span>
           </div>
           <div style={{ borderTop: "1px solid var(--border)", marginTop: 6, paddingTop: 6, display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 11, color: "var(--text2)" }}>Cəmi</span>
-            <span style={{ fontSize: 18, fontWeight: 700 }}>{(grandLK + grandLD) || "—"}</span>
+            <span style={{ fontSize: 15, fontWeight: 700 }}>{(grandLK + grandLD) || "—"}</span>
           </div>
         </div>
       </div>
