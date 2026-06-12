@@ -12,6 +12,7 @@ export default function Borclar({ db_data }) {
   db_data.shops.forEach((shop, i) => {
     const sessDatas = todayDeliveries[i] || {};
     let todayGiven = 0;
+    let todayReturn = 0;
 
     SESS.forEach(sv => {
       const d = sessDatas[sv.id];
@@ -23,6 +24,7 @@ export default function Borclar({ db_data }) {
       const netK = Math.max(0, k - lk);
       const netD = Math.max(0, dd - ld);
       todayGiven += netK * (shop.kura ?? db_data.prices.kura) + netD * (shop.damiryolu ?? db_data.prices.damiryolu);
+      todayReturn += lk * (shop.kura ?? db_data.prices.kura) + ld * (shop.damiryolu ?? db_data.prices.damiryolu);
     });
 
     const currentDebt = db_data.debts?.[i] || 0;
@@ -30,15 +32,14 @@ export default function Borclar({ db_data }) {
     const evvelki = currentDebt - todayGiven + yigilan;
     const gunSonu = currentDebt;
 
-    if (todayGiven === 0 && evvelki === 0 && yigilan === 0) return;
+    if (todayGiven === 0 && evvelki === 0 && yigilan === 0 && todayReturn === 0) return;
 
-    shopRows.push({ i, name: shop.name, evvelki, todayGiven, yigilan, gunSonu });
+    shopRows.push({ i, name: shop.name, evvelki, todayGiven, yigilan, todayReturn, gunSonu });
   });
 
   const totBugun = shopRows.reduce((a, r) => a + r.todayGiven, 0);
   const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
-  const totEvvelki = shopRows.reduce((a, r) => a + r.evvelki, 0);
-  const totGunSonu = shopRows.reduce((a, r) => a + r.gunSonu, 0);
+  const totReturn = shopRows.reduce((a, r) => a + r.todayReturn, 0);
   const umumiBorc = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
 
   const thStyle = (center) => ({
@@ -69,8 +70,8 @@ export default function Borclar({ db_data }) {
         {fmtDate(TODAY)}
       </div>
 
-      {/* 3 kart */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
+      {/* Kartlar */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
         <div style={{ ...c.metric }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
           <div style={{ fontSize: 17, fontWeight: 700, color: umumiBorc > 0 ? "#dc2626" : umumiBorc < 0 ? "var(--success-text)" : "var(--text)" }}>
@@ -80,13 +81,19 @@ export default function Borclar({ db_data }) {
         <div style={{ ...c.metric }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Bugünkü borc</div>
           <div style={{ fontSize: 17, fontWeight: 700, color: totBugun > 0 ? "#dc2626" : "var(--text)" }}>
-            {totBugun > 0 ? totBugun.toFixed(2) : "—"} {totBugun > 0 ? "₼" : ""}
+            {totBugun > 0 ? totBugun.toFixed(2) + " ₼" : "—"}
           </div>
         </div>
         <div style={{ ...c.metricGreen }}>
           <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Bu gün yığılan</div>
           <div style={{ fontSize: 17, fontWeight: 700, color: "var(--collected-text)" }}>
-            {totYigilan > 0 ? totYigilan.toFixed(2) : "—"} {totYigilan > 0 ? "₼" : ""}
+            {totYigilan > 0 ? totYigilan.toFixed(2) + " ₼" : "—"}
+          </div>
+        </div>
+        <div style={{ ...c.metric }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: totReturn > 0 ? "var(--success-text)" : "var(--text)" }}>
+            {totReturn > 0 ? `-${totReturn.toFixed(2)} ₼` : "—"}
           </div>
         </div>
       </div>
@@ -105,6 +112,7 @@ export default function Borclar({ db_data }) {
                 <th style={thStyle(true)}>Əvvəlki borc</th>
                 <th style={thStyle(true)}>Bu günkü</th>
                 <th style={thStyle(true)}>Yığılan</th>
+                <th style={thStyle(true)}>Qaytarılan</th>
                 <th style={thStyle(true)}>Gün sonu</th>
               </tr>
             </thead>
@@ -121,26 +129,14 @@ export default function Borclar({ db_data }) {
                   <td style={tdStyle("var(--success-text)")}>
                     {r.yigilan > 0 ? r.yigilan.toFixed(2) : "—"}
                   </td>
+                  <td style={tdStyle("var(--success-text)")}>
+                    {r.todayReturn > 0 ? `-${r.todayReturn.toFixed(2)}` : "—"}
+                  </td>
                   <td style={tdStyle(r.gunSonu > 0 ? "#dc2626" : r.gunSonu < 0 ? "var(--success-text)" : "var(--text2)", true)}>
                     {r.gunSonu !== 0 ? r.gunSonu.toFixed(2) : "—"}
                   </td>
                 </tr>
               ))}
-              <tr style={{ background: "var(--bg2)", borderTop: "2px solid var(--border2)" }}>
-                <td style={tdLStyle(true, "var(--bg2)")}>📊 Cəmi</td>
-                <td style={tdStyle(totEvvelki > 0 ? "#dc2626" : "var(--text2)", true, "var(--bg2)")}>
-                  {totEvvelki !== 0 ? totEvvelki.toFixed(2) : "—"}
-                </td>
-                <td style={tdStyle("#dc2626", true, "var(--bg2)")}>
-                  {totBugun > 0 ? totBugun.toFixed(2) : "—"}
-                </td>
-                <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
-                  {totYigilan > 0 ? totYigilan.toFixed(2) : "—"}
-                </td>
-                <td style={tdStyle(totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text2)", true, "var(--bg2)")}>
-                  {totGunSonu !== 0 ? totGunSonu.toFixed(2) : "—"}
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
