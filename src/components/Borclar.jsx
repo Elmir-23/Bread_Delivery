@@ -79,13 +79,13 @@ export default function Borclar({ db_data }) {
           </div>
         </div>
         <div style={{ ...c.metricGreen }}>
-          <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan</div>
+          <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--collected-text)" }}>
             {totYigilan > 0 ? totYigilan.toFixed(2) + " ₼" : "—"}
           </div>
         </div>
         <div style={{ ...c.metric }}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan</div>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan çörək</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: totReturn > 0 ? "var(--success-text)" : "var(--text)" }}>
             {totReturn > 0 ? `-${totReturn.toFixed(2)} ₼` : "—"}
           </div>
