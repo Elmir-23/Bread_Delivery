@@ -1,18 +1,22 @@
+import { useState } from "react";
 import { c } from "../styles/styles";
-import { todayStr, fmtDate } from "../utils/dates";
+import { todayStr, addDays, fmtDate } from "../utils/dates";
 import { SESS } from "../constants";
 
 export default function Borclar({ db_data }) {
   const TODAY = todayStr();
-  const todayDeliveries = db_data.deliveries?.[TODAY] || {};
-  const todayPayments = db_data.debtPayments?.[TODAY] || {};
+  const [selDate, setSelDate] = useState(TODAY);
+  const isToday = selDate === TODAY;
+
+  const selDeliveries = db_data.deliveries?.[selDate] || {};
+  const selPayments = db_data.debtPayments?.[selDate] || {};
 
   const shopRows = [];
 
   db_data.shops.forEach((shop, i) => {
-    const sessDatas = todayDeliveries[i] || {};
-    let todayGiven = 0;
-    let todayReturn = 0;
+    const sessDatas = selDeliveries[i] || {};
+    let dayGiven = 0;
+    let dayReturn = 0;
 
     SESS.forEach(sv => {
       const d = sessDatas[sv.id];
@@ -23,24 +27,72 @@ export default function Borclar({ db_data }) {
       const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
       const netK = Math.max(0, k - lk);
       const netD = Math.max(0, dd - ld);
-      todayGiven += netK * (shop.kura ?? db_data.prices.kura) + netD * (shop.damiryolu ?? db_data.prices.damiryolu);
-      todayReturn += lk * (shop.kura ?? db_data.prices.kura) + ld * (shop.damiryolu ?? db_data.prices.damiryolu);
+      dayGiven += netK * (shop.kura ?? db_data.prices.kura) + netD * (shop.damiryolu ?? db_data.prices.damiryolu);
+      dayReturn += lk * (shop.kura ?? db_data.prices.kura) + ld * (shop.damiryolu ?? db_data.prices.damiryolu);
     });
 
-    const currentDebt = db_data.debts?.[i] || 0;
-    const yigilan = todayPayments[i] || todayPayments[String(i)] || 0;
-    const evvelki = currentDebt - todayGiven + yigilan;
-    const gunSonu = currentDebt;
+    const yigilan = selPayments[i] || selPayments[String(i)] || 0;
 
-    if (todayGiven === 0 && evvelki === 0 && yigilan === 0 && todayReturn === 0) return;
+    // Həmin tarixə qədər olan bütün deliveries-dən borcu hesabla
+    let debtUpToDate = 0;
+    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+      if (date > selDate) return;
+      const shopSess = shops[i] || {};
+      SESS.forEach(sv => {
+        const d = shopSess[sv.id]; if (!d) return;
+        const k = d.given?.kura || 0;
+        const dd = d.given?.damiryolu || 0;
+        const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
+        const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
+        debtUpToDate += Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
+        debtUpToDate += Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+      });
+    });
+    Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
+      if (date > selDate) return;
+      debtUpToDate -= payments[i] || payments[String(i)] || 0;
+    });
 
-    shopRows.push({ i, name: shop.name, evvelki, todayGiven, yigilan, todayReturn, gunSonu });
+    const gunSonu = parseFloat(debtUpToDate.toFixed(2));
+    const evvelki = parseFloat((gunSonu - dayGiven + yigilan).toFixed(2));
+
+    if (dayGiven === 0 && evvelki === 0 && yigilan === 0 && dayReturn === 0) return;
+
+    shopRows.push({ i, name: shop.name, evvelki, dayGiven, yigilan, dayReturn, gunSonu });
   });
 
-  const totBugun = shopRows.reduce((a, r) => a + r.todayGiven, 0);
+  // Kartlar üçün
   const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
-  const totReturn = shopRows.reduce((a, r) => a + r.todayReturn, 0);
-  const umumiBorc = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
+  const totReturn = shopRows.reduce((a, r) => a + r.dayReturn, 0);
+
+  // Ümumi borc: seçilmiş tarixə qədər
+  let umumiBorc = 0;
+  if (isToday) {
+    umumiBorc = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
+  } else {
+    db_data.shops.forEach((shop, i) => {
+      let debt = 0;
+      Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+        if (date > selDate) return;
+        const shopSess = shops[i] || {};
+        SESS.forEach(sv => {
+          const d = shopSess[sv.id]; if (!d) return;
+          const k = d.given?.kura || 0;
+          const dd = d.given?.damiryolu || 0;
+          const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
+          const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
+          debt += Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
+          debt += Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+        });
+      });
+      Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
+        if (date > selDate) return;
+        debt -= payments[i] || payments[String(i)] || 0;
+      });
+      umumiBorc += debt;
+    });
+    umumiBorc = parseFloat(umumiBorc.toFixed(2));
+  }
 
   const thStyle = (center) => ({
     padding: "6px 8px", fontSize: 10, fontWeight: 700,
@@ -66,8 +118,12 @@ export default function Borclar({ db_data }) {
 
   return (
     <div style={{ padding: "1rem 0" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 10, padding: "0 1rem" }}>
-        {fmtDate(TODAY)}
+
+      {/* Tarix naviqasiyası */}
+      <div style={{ ...c.dateRow, padding: "0 1rem", marginBottom: 12 }}>
+        <button style={c.dateBtn(false)} onClick={() => setSelDate(d => addDays(d, -1))}>‹</button>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{isToday ? "Bu gün — " : ""}{fmtDate(selDate)}</span>
+        <button style={c.dateBtn(isToday)} onClick={() => { if (!isToday) setSelDate(d => addDays(d, 1)); }}>›</button>
       </div>
 
       {/* Kartlar */}
@@ -95,7 +151,7 @@ export default function Borclar({ db_data }) {
       {/* Cədvəl */}
       {shopRows.length === 0 ? (
         <div style={{ ...c.block, margin: "0 1rem", textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "2rem" }}>
-          Bu gün hələ məlumat yoxdur.
+          Bu tarix üçün məlumat yoxdur.
         </div>
       ) : (
         <div style={{ margin: "0 1rem", overflowX: "auto" }}>
@@ -118,13 +174,13 @@ export default function Borclar({ db_data }) {
                     {r.evvelki !== 0 ? r.evvelki.toFixed(2) : "—"}
                   </td>
                   <td style={tdStyle("#dc2626")}>
-                    {r.todayGiven > 0 ? r.todayGiven.toFixed(2) : "—"}
+                    {r.dayGiven > 0 ? r.dayGiven.toFixed(2) : "—"}
                   </td>
                   <td style={tdStyle("var(--success-text)")}>
                     {r.yigilan > 0 ? r.yigilan.toFixed(2) : "—"}
                   </td>
                   <td style={tdStyle("var(--success-text)")}>
-                    {r.todayReturn > 0 ? `-${r.todayReturn.toFixed(2)}` : "—"}
+                    {r.dayReturn > 0 ? `-${r.dayReturn.toFixed(2)}` : "—"}
                   </td>
                   <td style={tdStyle(r.gunSonu > 0 ? "#dc2626" : r.gunSonu < 0 ? "var(--success-text)" : "var(--text2)", true)}>
                     {r.gunSonu !== 0 ? r.gunSonu.toFixed(2) : "—"}
