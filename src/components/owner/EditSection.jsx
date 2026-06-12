@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { c } from "../../styles/styles";
 import { todayStr, addDays, fmtDateShort } from "../../utils/dates";
-import { SESS } from "../../constants";
+import { SESS, EXP_CATS } from "../../constants";
 import EntryForm from "../delivery/EntryForm";
 
-export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment }) {
+export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment, saveExpense, deleteExpense }) {
   const isEditToday = editDate === todayStr();
   const [handoverEditVal, setHandoverEditVal] = useState("");
   const [kassaEditVal, setKassaEditVal] = useState("");
+  const [showExpAdd, setShowExpAdd] = useState(false);
+  const [editExpVals, setEditExpVals] = useState({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
 
   if (editView === "date-shops") {
     const sd = db_data.deliveries?.[editDate] || {};
@@ -93,6 +95,60 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
             <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
           </div>
           <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveKassaAdjustment(kassaEditVal); setKassaEditVal(""); }}>Saxla</button>
+        </div>
+
+        {/* Xərclər bloku */}
+        <div style={{ ...c.block, marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={c.blockTitle}>💸 Xərclər</div>
+            {!showExpAdd && <button style={{ fontSize: 12, padding: "4px 10px", border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }} onClick={() => setShowExpAdd(true)}>+ Əlavə et</button>}
+          </div>
+
+          {/* Mövcud xərclər */}
+          {(db_data.expenses?.[editDate] || []).length > 0 && (
+            <div style={{ marginBottom: showExpAdd ? 12 : 0 }}>
+              {(db_data.expenses?.[editDate] || []).map((e, i) => {
+                const cat = EXP_CATS.find(x => x.id === e.cat);
+                return (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                    <span style={{ fontSize: 13 }}>{cat?.icon} {e.desc}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>{e.amount.toFixed(2)} ₼</span>
+                      <button onClick={() => deleteExpense(editDate, i)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 15, color: "var(--text2)" }}>🗑</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {(db_data.expenses?.[editDate] || []).length === 0 && !showExpAdd && (
+            <div style={{ fontSize: 12, color: "var(--text2)" }}>Bu gün xərc yoxdur.</div>
+          )}
+
+          {/* Yeni xərc əlavə et */}
+          {showExpAdd && (
+            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+              {EXP_CATS.map(cat => (
+                <div key={cat.id}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: cat.id === "diger" ? 4 : 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{cat.icon} {cat.label}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input type="number" min={0} step={0.01} value={editExpVals[cat.id]} onChange={e => setEditExpVals(p => ({ ...p, [cat.id]: e.target.value }))} placeholder="0.00" style={{ width: 80, padding: "6px 8px", textAlign: "right", fontSize: 14, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)" }} />
+                      <span style={{ fontSize: 13, color: "var(--text2)" }}>₼</span>
+                    </div>
+                  </div>
+                  {cat.id === "diger" && (
+                    <input type="text" value={editExpVals.digerDesc} onChange={e => setEditExpVals(p => ({ ...p, digerDesc: e.target.value }))} placeholder="Açıqlama…" style={{ width: "100%", padding: "6px 10px", fontSize: 13, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", marginBottom: 8 }} />
+                  )}
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button style={{ ...c.outlineBtn, flex: 1 }} onClick={() => { setShowExpAdd(false); setEditExpVals({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" }); }}>Ləğv et</button>
+                <button style={{ ...c.primaryBtn, flex: 1 }} onClick={() => { saveExpense(editDate, editExpVals); setShowExpAdd(false); setEditExpVals({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" }); }}>Saxla</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Mağaza siyahısı */}
