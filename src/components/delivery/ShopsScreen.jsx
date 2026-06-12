@@ -68,7 +68,7 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
 
 
       <div style={{ marginTop: "1.5rem" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🚗 Maşın xərcləri</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>💸 Xərclər</div>
         {expView === "add" ? (
           <div style={c.block}>
             <div style={{ ...c.blockTitle, marginBottom: 12 }}>Xərc əlavə et</div>
