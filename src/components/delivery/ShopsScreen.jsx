@@ -34,6 +34,30 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
   const grandLK = shopRows.reduce((a, r) => a + r.totLK, 0);
   const grandLD = shopRows.reduce((a, r) => a + r.totLD, 0);
 
+  // Cari borc — Borclar tab-ındakı "Gün sonu" ilə eyni məntiq:
+  // bütün çatdırılmalar (bu gün daxil) − bütün yığılan ödənişlər
+  const currentDebt = (shop, idx) => {
+    let debt = 0;
+    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+      if (date > TODAY) return;
+      const shopSess = shops[idx] || {};
+      SESS.forEach(sv => {
+        const d = shopSess[sv.id]; if (!d) return;
+        const k = d.given?.kura || 0;
+        const dd = d.given?.damiryolu || 0;
+        const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
+        const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
+        debt += Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
+        debt += Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+      });
+    });
+    Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
+      if (date > TODAY) return;
+      debt -= payments[idx] || payments[String(idx)] || 0;
+    });
+    return parseFloat(debt.toFixed(2));
+  };
+
   const th = (center, left) => ({
     padding: "5px 4px", fontSize: 10, fontWeight: 700,
     color: "var(--text2)", textAlign: center ? "center" : left ? "left" : "center",
@@ -53,7 +77,7 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
         {db_data.shops.map((s, i) => {
           const sd = db_data.deliveries?.[TODAY]?.[i] || {};
           const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.damiryolu));
-          const debt = db_data.debts?.[i] || 0;
+          const debt = currentDebt(s, i);
           return (
             <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
               {s.name}
