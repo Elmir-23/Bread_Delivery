@@ -49,12 +49,25 @@ export function useAppData(userEmail) {
 
 const unsub = onSnapshot(ref, (snap) => {
   if (snap.exists()) {
+    initialized = true;
     setDbData(snap.data());
     setLoading(false);
-  } else {
-    setDoc(ref, DEFAULT_DB);
-    setDbData(DEFAULT_DB);
-    setLoading(false);
+  } else if (!initialized) {
+    getDoc(ref).then(freshSnap => {
+      if (freshSnap.exists()) {
+        initialized = true;
+        setDbData(freshSnap.data());
+      } else {
+        setDoc(ref, DEFAULT_DB);
+        setDbData(DEFAULT_DB);
+        initialized = true;
+      }
+      setLoading(false);
+    }).catch(() => {
+      setDoc(ref, DEFAULT_DB);
+      setDbData(DEFAULT_DB);
+      setLoading(false);
+    });
   }
 });
 
