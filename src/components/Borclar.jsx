@@ -33,7 +33,7 @@ export default function Borclar({ db_data }) {
 
     const yigilan = selPayments[i] || selPayments[String(i)] || 0;
 
-    // Gün sonuna qədər borc
+    // Həmin tarixə qədər olan bütün deliveries-dən borcu hesabla
     let debtUpToDate = 0;
     Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date > selDate) return;
@@ -61,12 +61,38 @@ export default function Borclar({ db_data }) {
     shopRows.push({ i, name: shop.name, evvelki, dayGiven, yigilan, dayReturn, gunSonu });
   });
 
-  const totEvvelki   = shopRows.reduce((a, r) => a + r.evvelki, 0);
-  const totDayGiven  = shopRows.reduce((a, r) => a + r.dayGiven, 0);
-  const totYigilan   = shopRows.reduce((a, r) => a + r.yigilan, 0);
-  const totReturn    = shopRows.reduce((a, r) => a + r.dayReturn, 0);
-  const totGunSonu   = shopRows.reduce((a, r) => a + r.gunSonu, 0);
-  const totUmumiBorc = parseFloat((totEvvelki + totDayGiven).toFixed(2));
+  // Kartlar üçün
+  const totYigilan = shopRows.reduce((a, r) => a + r.yigilan, 0);
+  const totReturn = shopRows.reduce((a, r) => a + r.dayReturn, 0);
+
+  // Ümumi borc: seçilmiş tarixə qədər
+  let umumiBorc = 0;
+  if (isToday) {
+    umumiBorc = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
+  } else {
+    db_data.shops.forEach((shop, i) => {
+      let debt = 0;
+      Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+        if (date > selDate) return;
+        const shopSess = shops[i] || {};
+        SESS.forEach(sv => {
+          const d = shopSess[sv.id]; if (!d) return;
+          const k = d.given?.kura || 0;
+          const dd = d.given?.damiryolu || 0;
+          const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
+          const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
+          debt += Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
+          debt += Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+        });
+      });
+      Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
+        if (date > selDate) return;
+        debt -= payments[i] || payments[String(i)] || 0;
+      });
+      umumiBorc += debt;
+    });
+    umumiBorc = parseFloat(umumiBorc.toFixed(2));
+  }
 
   const thStyle = (center) => ({
     padding: "6px 8px", fontSize: 10, fontWeight: 700,
@@ -100,33 +126,25 @@ export default function Borclar({ db_data }) {
         <button style={c.dateBtn(isToday)} onClick={() => { if (!isToday) setSelDate(d => addDays(d, 1)); }}>›</button>
       </div>
 
-      {/* Kartlar — 3 sırada */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: 8 }}>
-        <div style={c.metric}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Bu günkü borc</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: totDayGiven > 0 ? "#dc2626" : "var(--text)" }}>
-            {totDayGiven > 0 ? totDayGiven.toFixed(2) + " ₼" : "—"}
+      {/* Kartlar */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
+        <div style={{ ...c.metric }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: umumiBorc > 0 ? "#dc2626" : umumiBorc < 0 ? "var(--success-text)" : "var(--text)" }}>
+            {umumiBorc.toFixed(2)} ₼
           </div>
         </div>
-        <div style={c.metricGreen}>
+        <div style={{ ...c.metricGreen }}>
           <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--collected-text)" }}>
             {totYigilan > 0 ? totYigilan.toFixed(2) + " ₼" : "—"}
           </div>
         </div>
-        <div style={c.metric}>
+        <div style={{ ...c.metric }}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan çörək</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: totReturn > 0 ? "var(--success-text)" : "var(--text)" }}>
             {totReturn > 0 ? `-${totReturn.toFixed(2)} ₼` : "—"}
           </div>
-        </div>
-      </div>
-
-      {/* Gün sonu borcu — tam en */}
-      <div style={{ ...c.metric, margin: "0 1rem 1rem", border: `1px solid ${totGunSonu > 0 ? "#fca5a5" : "var(--border)"}` }}>
-        <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Gün sonu borcun cəmi</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text)" }}>
-          {totGunSonu.toFixed(2)} ₼
         </div>
       </div>
 
@@ -169,25 +187,6 @@ export default function Borclar({ db_data }) {
                   </td>
                 </tr>
               ))}
-              {/* Cəmi sətiri */}
-              <tr style={{ background: "var(--bg2)", borderTop: "2px solid var(--border2)" }}>
-                <td style={tdLStyle(true, "var(--bg2)")}>📊 Cəmi</td>
-                <td style={tdStyle(totEvvelki > 0 ? "#dc2626" : totEvvelki < 0 ? "var(--success-text)" : "var(--text2)", true, "var(--bg2)")}>
-                  {totEvvelki !== 0 ? totEvvelki.toFixed(2) : "—"}
-                </td>
-                <td style={tdStyle("#dc2626", true, "var(--bg2)")}>
-                  {totDayGiven > 0 ? totDayGiven.toFixed(2) : "—"}
-                </td>
-                <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
-                  {totYigilan > 0 ? totYigilan.toFixed(2) : "—"}
-                </td>
-                <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
-                  {totReturn > 0 ? `-${totReturn.toFixed(2)}` : "—"}
-                </td>
-                <td style={tdStyle(totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text2)", true, "var(--bg2)")}>
-                  {totGunSonu.toFixed(2)}
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
