@@ -3,71 +3,7 @@ import { fmtDate } from "../../utils/dates";
 import { SESS, EXP_CATS } from "../../constants";
 
 export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setExpView, expView, expVals, setExpVals, saveExpense, deleteExpense }) {
-  const todayDeliveries = db_data.deliveries?.[TODAY] || {};
-  const todayPayments = db_data.debtPayments?.[TODAY] || {};
   const todayExps = db_data.expenses?.[TODAY] || [];
-
-  const shopRows = [];
-  db_data.shops.forEach((shop, i) => {
-    const sessDatas = todayDeliveries[i] || {};
-    let hasAny = false;
-    const rows = SESS.map(sv => {
-      const d = sessDatas[sv.id];
-      if (!d) return { sess: sv, gK: 0, gD: 0, lK: 0, lD: 0, empty: true };
-      const gK = d.given?.kura || 0;
-      const gD = d.given?.damiryolu || 0;
-      const lK = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
-      const lD = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
-      if (gK || gD) hasAny = true;
-      return { sess: sv, gK, gD, lK, lD, empty: !gK && !gD };
-    });
-    if (!hasAny) return;
-    const totGK = rows.reduce((a, r) => a + r.gK, 0);
-    const totGD = rows.reduce((a, r) => a + r.gD, 0);
-    const totLK = rows.reduce((a, r) => a + r.lK, 0);
-    const totLD = rows.reduce((a, r) => a + r.lD, 0);
-    shopRows.push({ shop, i, rows, totGK, totGD, totLK, totLD });
-  });
-
-  const grandGK = shopRows.reduce((a, r) => a + r.totGK, 0);
-  const grandGD = shopRows.reduce((a, r) => a + r.totGD, 0);
-  const grandLK = shopRows.reduce((a, r) => a + r.totLK, 0);
-  const grandLD = shopRows.reduce((a, r) => a + r.totLD, 0);
-
-  // Cari borc — Borclar tab-ındakı "Gün sonu" ilə eyni məntiq:
-  // bütün çatdırılmalar (bu gün daxil) − bütün yığılan ödənişlər
-  const currentDebt = (shop, idx) => {
-    let debt = 0;
-    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
-      if (date > TODAY) return;
-      const shopSess = shops[idx] || {};
-      SESS.forEach(sv => {
-        const d = shopSess[sv.id]; if (!d) return;
-        const k = d.given?.kura || 0;
-        const dd = d.given?.damiryolu || 0;
-        const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
-        const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
-        debt += Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
-        debt += Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
-      });
-    });
-    Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
-      if (date > TODAY) return;
-      debt -= payments[idx] || payments[String(idx)] || 0;
-    });
-    return parseFloat(debt.toFixed(2));
-  };
-
-  const th = (center, left) => ({
-    padding: "5px 4px", fontSize: 10, fontWeight: 700,
-    color: "var(--text2)", textAlign: center ? "center" : left ? "left" : "center",
-    background: "var(--bg2)", border: "1px solid var(--border)", whiteSpace: "nowrap"
-  });
-  const td = (center, bold, color) => ({
-    padding: "5px 4px", fontSize: 11, textAlign: center ? "center" : "left",
-    border: "1px solid var(--border)", fontWeight: bold ? 600 : 400,
-    color: color || "var(--text)", whiteSpace: "nowrap"
-  });
 
   return (
     <div style={c.pad}>
@@ -77,19 +13,14 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
         {db_data.shops.map((s, i) => {
           const sd = db_data.deliveries?.[TODAY]?.[i] || {};
           const done = SESS.every(x => sd[x.id] && (sd[x.id].given?.kura || sd[x.id].given?.damiryolu));
-          const debt = currentDebt(s, i);
           return (
             <button key={i} style={c.shopBtn} onClick={() => { setSelShop(i); setView("session"); }}>
               {s.name}
               {done && <span style={{ ...c.tag, position: "absolute", top: 8, right: 8 }}>✓</span>}
-              {debt > 0 && <div style={{ fontSize: 10, color: "#dc2626", marginTop: 4, fontWeight: 600 }}>{debt.toFixed(2)} ₼ borc</div>}
-              {debt < 0 && <div style={{ fontSize: 10, color: "var(--success-text)", marginTop: 4, fontWeight: 600 }}>{Math.abs(debt).toFixed(2)} ₼ kredit</div>}
             </button>
           );
         })}
       </div>
-
-
 
       <div style={{ marginTop: "1.5rem" }}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>💸 Xərclər</div>
