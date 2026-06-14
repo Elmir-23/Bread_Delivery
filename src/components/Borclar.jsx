@@ -100,14 +100,8 @@ export default function Borclar({ db_data }) {
         <button style={c.dateBtn(isToday)} onClick={() => { if (!isToday) setSelDate(d => addDays(d, 1)); }}>›</button>
       </div>
 
-      {/* Kartlar — 2x2 + tam en */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: 8 }}>
-        <div style={c.metric}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Əvvəlki borc</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: totEvvelki > 0 ? "#dc2626" : totEvvelki < 0 ? "var(--success-text)" : "var(--text)" }}>
-            {totEvvelki !== 0 ? totEvvelki.toFixed(2) + " ₼" : "—"}
-          </div>
-        </div>
+      {/* Kartlar — 3 sırada */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: 8 }}>
         <div style={c.metric}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Bu günkü borc</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: totDayGiven > 0 ? "#dc2626" : "var(--text)" }}>
@@ -175,6 +169,25 @@ export default function Borclar({ db_data }) {
                   </td>
                 </tr>
               ))}
+              {/* Cəmi sətiri */}
+              <tr style={{ background: "var(--bg2)", borderTop: "2px solid var(--border2)" }}>
+                <td style={tdLStyle(true, "var(--bg2)")}>📊 Cəmi</td>
+                <td style={tdStyle(totEvvelki > 0 ? "#dc2626" : totEvvelki < 0 ? "var(--success-text)" : "var(--text2)", true, "var(--bg2)")}>
+                  {totEvvelki !== 0 ? totEvvelki.toFixed(2) : "—"}
+                </td>
+                <td style={tdStyle("#dc2626", true, "var(--bg2)")}>
+                  {totDayGiven > 0 ? totDayGiven.toFixed(2) : "—"}
+                </td>
+                <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
+                  {totYigilan > 0 ? totYigilan.toFixed(2) : "—"}
+                </td>
+                <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
+                  {totReturn > 0 ? `-${totReturn.toFixed(2)}` : "—"}
+                </td>
+                <td style={tdStyle(totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text2)", true, "var(--bg2)")}>
+                  {totGunSonu.toFixed(2)}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
