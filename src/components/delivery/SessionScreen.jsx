@@ -1,10 +1,9 @@
 import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
-import { SESS_WITH_DEBT } from "../../constants";
+import { SESS } from "../../constants";
 
 export default function SessionScreen({ db_data, TODAY, selShop, setView, setCollectedInput, openDeliveryEntry }) {
   const sd = db_data.deliveries?.[TODAY]?.[selShop] || {};
-  const debt = db_data.debts?.[selShop] || 0;
   const shop = db_data.shops[selShop];
   const kPrice = shop?.kura ?? db_data.prices?.kura ?? 0.55;
   const rPrice = shop?.damiryolu ?? db_data.prices?.damiryolu ?? 0.65;
@@ -37,29 +36,13 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
         <button style={c.backBtn} onClick={() => setView("shops")}>‹</button>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500 }}>{shop?.name}</div>
-          <div style={{ fontSize: 12, color: debt > 0 ? "#dc2626" : debt < 0 ? "var(--success-text)" : "var(--text2)" }}>
-            {debt > 0 ? `Borc: ${debt.toFixed(2)} ₼` : debt < 0 ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : fmtDateShort(TODAY)}
-          </div>
+          <div style={{ fontSize: 12, color: "var(--text2)" }}>{fmtDateShort(TODAY)}</div>
         </div>
       </div>
       <div style={c.pad}>
         <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>Sessiya seçin</div>
         <div style={c.sessList}>
-          {SESS_WITH_DEBT.map(s => {
-            if (s.id === "debt") {
-              const isCredit = debt < 0;
-              return (
-                <button key="debt" style={{ ...c.sessBtn(false), borderColor: debt !== 0 ? (isCredit ? "var(--success-border)" : "#fca5a5") : "var(--border)" }} onClick={() => { setCollectedInput(""); setView("debt"); }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: isCredit ? "var(--success-text)" : debt > 0 ? "#dc2626" : "var(--text)" }}>💰 Borc</div>
-                    <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 2 }}>
-                      {debt === 0 ? "Borc yoxdur" : isCredit ? `Kredit: ${Math.abs(debt).toFixed(2)} ₼` : `Borc: ${debt.toFixed(2)} ₼`}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
-                </button>
-              );
-            }
+          {SESS.map(s => {
             const d = sd[s.id] || {};
             const has = d.given && (d.given.kura > 0 || d.given.damiryolu > 0);
             let sub = has
@@ -75,12 +58,26 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
               </button>
             );
           })}
+
+          {/* Borc yığmaq — ayrı düymə */}
+          <button
+            style={{ ...c.sessBtn(false), borderColor: "var(--border)", marginTop: 4 }}
+            onClick={() => { setCollectedInput(""); setView("debt"); }}
+          >
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text)" }}>💰 Borc yığ</div>
+              <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 2 }}>
+                Borclar tabında tam borc hesabatı
+              </div>
+            </div>
+            <span style={{ fontSize: 16, opacity: 0.4 }}>›</span>
+          </button>
         </div>
 
+        {/* Günün xülasəsi */}
         {hasAny && (
           <div style={{ ...c.block, marginTop: 16, background: "var(--bg2)" }}>
             <div style={c.blockTitle}>Günün xülasəsi</div>
-
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -124,13 +121,13 @@ export default function SessionScreen({ db_data, TODAY, selShop, setView, setCol
                 </tr>
                 {leftVal > 0 && (
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ ...tdS(false), color: "var(--text2)", fontSize: 11 }}>Qaytarilana görə</td>
-                    <td style={{ ...tdS(true), color: "var(--success-text)" }}>−{leftVal.toFixed(2)} ₼</td>
+                    <td style={{ ...tdS(false), color: "var(--text2)", fontSize: 11 }}>Qaytarılana görə</td>
+                    <td style={{ ...tdS(true), color: "var(--text2)" }}>−{leftVal.toFixed(2)} ₼</td>
                   </tr>
                 )}
                 {todayYigilan > 0 && (
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ ...tdS(false), color: "var(--text2)", fontSize: 11 }}>Bu gün yığılan</td>
+                    <td style={{ ...tdS(false), color: "var(--text2)", fontSize: 11 }}>Yığılan pul</td>
                     <td style={{ ...tdS(true), color: "var(--success-text)" }}>−{todayYigilan.toFixed(2)} ₼</td>
                   </tr>
                 )}
