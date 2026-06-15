@@ -63,9 +63,8 @@ const unsub = onSnapshot(ref, (snap) => {
         initialized = true;
       }
       setLoading(false);
-    }).catch(() => {
-      setDoc(ref, DEFAULT_DB);
-      setDbData(DEFAULT_DB);
+    }).catch((e) => {
+      console.error("Firestore bağlantı xətası:", e);
       setLoading(false);
     });
   }
