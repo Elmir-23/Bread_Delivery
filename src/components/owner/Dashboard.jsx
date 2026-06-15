@@ -3,14 +3,13 @@ import { c } from "../../styles/styles";
 import { todayStr, addDays } from "../../utils/dates";
 import { EXP_CATS, SESS } from "../../constants";
 
-export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment }) {
+export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, saveHandover, saveKassaAdjustment }) {
   const [handoverInput, setHandoverInput] = useState("");
   const [kassaInput, setKassaInput] = useState("");
   const [showKassaEdit, setShowKassaEdit] = useState(false);
 
   const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
   const { totExp } = calcExpenses(dashPeriod);
-  const totalDebt = Object.values(db_data.debts || {}).reduce((a, b) => a + b, 0);
 
   const t = todayStr();
   let s = t;
@@ -26,9 +25,9 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
     let val = 0;
     Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
       if (date < s || date > t) return;
-      Object.entries(shops).forEach(([idx, sess]) => {
+      Object.entries(shops).forEach(([idx]) => {
         const i = parseInt(idx);
-        const d = sess["morning"]; if (!d) return;
+        const d = shops[idx]["morning"]; if (!d) return;
         const lk = d.leftover?.kura || 0;
         const lr = d.leftover?.damiryolu || 0;
         const kPrice = db_data.shops[i]?.kura ?? db_data.prices?.kura ?? 0.55;
@@ -38,6 +37,43 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
     });
     return parseFloat(val.toFixed(2));
   })();
+
+  // Borclar tabı ilə eyni məntiq — seçilmiş dövr üçün borc hesablaması
+  const calcDebtForPeriod = () => {
+    let dayGiven = 0, prevDebt = 0, gunSonu = 0;
+    db_data.shops.forEach((shop, i) => {
+      let debtUpToEnd = 0, debtUpToStart = 0;
+      Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+        const shopSess = shops[i] || {};
+        SESS.forEach(sv => {
+          const d = shopSess[sv.id]; if (!d) return;
+          const k = d.given?.kura || 0;
+          const dd = d.given?.damiryolu || 0;
+          const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
+          const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
+          const val = Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura) +
+                      Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+          if (date <= t) debtUpToEnd += val;
+          if (date < s)  debtUpToStart += val;
+          if (date >= s && date <= t) dayGiven += val;
+        });
+      });
+      Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
+        const v = payments[i] || payments[String(i)] || 0;
+        if (date <= t) debtUpToEnd -= v;
+        if (date < s)  debtUpToStart -= v;
+      });
+      gunSonu += debtUpToEnd;
+      prevDebt += debtUpToStart;
+    });
+    return {
+      dayGiven: parseFloat(dayGiven.toFixed(2)),
+      prevDebt: parseFloat(prevDebt.toFixed(2)),
+      gunSonu: parseFloat(gunSonu.toFixed(2)),
+    };
+  };
+
+  const { dayGiven, prevDebt, gunSonu } = calcDebtForPeriod();
 
   const kassaBalance = (() => {
     const allDates = [...new Set([
@@ -77,32 +113,33 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         <div style={{ fontSize: 28, fontWeight: 700 }}>{totRev.toFixed(2)} ₼</div>
       </div>
 
-      {/* Ümumi borc başlıq */}
-      <div style={{ ...c.metric, marginBottom: 8, border: `1px solid ${totalDebt > 0 ? "#fca5a5" : "var(--border)"}` }}>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Ümumi borc</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: totalDebt > 0 ? "#dc2626" : totalDebt < 0 ? "var(--success-text)" : "var(--text)" }}>
-            {totalDebt.toFixed(2)} ₼
+      {/* Borc bloku — Borclar tabı ilə eyni məntiq */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div style={c.metric}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Bu günkü borc</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: dayGiven > 0 ? "#dc2626" : "var(--text)" }}>
+            {dayGiven > 0 ? dayGiven.toFixed(2) + " ₼" : "—"}
           </div>
         </div>
-        {/* Yığılan + Qaytarılan */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-          <div style={{ background: "var(--bg2)", borderRadius: 10, padding: "8px 10px" }}>
-            <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 2, fontWeight: 600 }}>Yığılan pul</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--collected-text)" }}>
-              {totCollected.toFixed(2)} ₼
-            </div>
+        <div style={c.metricGreen}>
+          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--collected-text)" }}>
+            {totCollected > 0 ? totCollected.toFixed(2) + " ₼" : "—"}
           </div>
-          <div style={{ background: "var(--bg2)", borderRadius: 10, padding: "8px 10px" }}>
-            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 2, fontWeight: 600 }}>Qaytarılan çörək</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: totReturnVal > 0 ? "var(--success-text)" : "var(--text)" }}>
-              {totReturnVal > 0 ? `-${totReturnVal.toFixed(2)} ₼` : "—"}
-            </div>
-            {(totLK > 0 || totLR > 0) && (
-              <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
-                K:{totLK} · D:{totLR}
-              </div>
-            )}
+        </div>
+        <div style={c.metric}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan çörək</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: totReturnVal > 0 ? "var(--success-text)" : "var(--text)" }}>
+            {totReturnVal > 0 ? `-${totReturnVal.toFixed(2)} ₼` : "—"}
+          </div>
+          {(totLK > 0 || totLR > 0) && (
+            <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>K:{totLK} · D:{totLR}</div>
+          )}
+        </div>
+        <div style={{ ...c.metric, border: `1px solid ${gunSonu > 0 ? "#fca5a5" : "var(--border)"}` }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Gün sonu borcu</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: gunSonu > 0 ? "#dc2626" : gunSonu < 0 ? "var(--success-text)" : "var(--text)" }}>
+            {gunSonu.toFixed(2)} ₼
           </div>
         </div>
       </div>
@@ -116,35 +153,31 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
               {kassaBalance.toFixed(2)} ₼
             </div>
           </div>
-          <button
-            onClick={() => { setShowKassaEdit(!showKassaEdit); setKassaInput(kassaBalance.toFixed(2)); }}
-            style={{ fontSize: 11, padding: "4px 10px", border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }}
-          >✏️ Düzəlt</button>
+          <button onClick={() => { setShowKassaEdit(!showKassaEdit); setKassaInput(kassaBalance.toFixed(2)); }}
+            style={{ fontSize: 11, padding: "4px 10px", border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }}>
+            ✏️ Düzəlt
+          </button>
         </div>
         {showKassaEdit && (
           <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>
-              Kassanın olması lazım olan məbləğini daxil edin
-            </div>
+            <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>Kassanın olması lazım olan məbləğini daxil edin</div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                type="number" step={0.01}
-                value={kassaInput}
-                onChange={e => setKassaInput(e.target.value)}
+              <input type="number" step={0.01} value={kassaInput} onChange={e => setKassaInput(e.target.value)}
                 placeholder={kassaBalance.toFixed(2)}
-                style={{ flex: 1, padding: "8px 10px", fontSize: 15, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-              />
+                style={{ flex: 1, padding: "8px 10px", fontSize: 15, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
               <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
-              <button
-                style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
-                onClick={() => { saveKassaAdjustment(kassaInput); setShowKassaEdit(false); }}
-              >Saxla</button>
+              <button style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
+                onClick={() => { saveKassaAdjustment(kassaInput); setShowKassaEdit(false); }}>Saxla</button>
             </div>
-            <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 6 }}>
-              Cari kassa: {kassaBalance.toFixed(2)} ₼
-            </div>
+            <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 6 }}>Cari kassa: {kassaBalance.toFixed(2)} ₼</div>
           </div>
         )}
+      </div>
+
+      {/* Təhvil verilən */}
+      <div style={{ ...c.metric, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{totHandover > 0 ? `${totHandover.toFixed(2)} ₼` : "—"}</div>
       </div>
 
       {/* Xərclər */}
@@ -175,14 +208,6 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         </div>
       )}
 
-      {/* Təhvil verilən */}
-      <div style={{ ...c.metric, marginBottom: "1rem" }}>
-        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>
-          {totHandover > 0 ? `${totHandover.toFixed(2)} ₼` : "—"}
-        </div>
-      </div>
-
       {/* Təhvil daxil et */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Təhvil daxil et</div>
       <div style={{ ...c.block, marginBottom: "1rem" }}>
@@ -191,18 +216,12 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
           {todayHandover > 0 && <span style={{ color: "var(--success-text)", marginLeft: 8 }}>Cari: {todayHandover.toFixed(2)} ₼</span>}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="number" min={0} step={0.01}
-            value={handoverInput}
-            onChange={e => setHandoverInput(e.target.value)}
+          <input type="number" min={0} step={0.01} value={handoverInput} onChange={e => setHandoverInput(e.target.value)}
             placeholder="0.00"
-            style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-          />
+            style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
           <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
-          <button
-            style={{ padding: "10px 16px", fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
-            onClick={() => { saveHandover(handoverInput); setHandoverInput(""); }}
-          >Saxla</button>
+          <button style={{ padding: "10px 16px", fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
+            onClick={() => { saveHandover(handoverInput); setHandoverInput(""); }}>Saxla</button>
         </div>
       </div>
 
