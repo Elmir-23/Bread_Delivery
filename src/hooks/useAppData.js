@@ -81,6 +81,17 @@ const unsub = onSnapshot(ref, (snap) => {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    const handleOffline = () => toast$("📡 İnternet bağlantısı kəsildi!");
+    const handleOnline  = () => toast$("✅ İnternet bərpa olundu!");
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online",  handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online",  handleOnline);
+    };
+  }, []);
+
   const upd = async (newData) => {
     if (!navigator.onLine) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return; }
     setDbData(newData);
