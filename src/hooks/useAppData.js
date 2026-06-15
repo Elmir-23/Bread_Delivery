@@ -38,7 +38,7 @@ export function useAppData(userEmail) {
   const [resetConfirm, setResetConfirm] = useState(false);
   const [editCollected, setEditCollected] = useState({});
   const [expView, setExpView] = useState("list");
-  const [expVals, setExpVals] = useState({ benzin: "", moyka: "", baxim: "", diger: "", digerDesc: "" });
+  const [expVals, setExpVals] = useState({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
   const [editDebtShop, setEditDebtShop] = useState(null);
   const [editDebtVal, setEditDebtVal] = useState("");
   const [confirmDeleteShop, setConfirmDeleteShop] = useState(null);
