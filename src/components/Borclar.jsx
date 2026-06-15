@@ -116,7 +116,7 @@ export default function Borclar({ db_data }) {
         </div>
         <div style={c.metric}>
           <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Qaytarılan çörək</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: totReturn > 0 ? "var(--success-text)" : "var(--text)" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>
             {totReturn > 0 ? `-${totReturn.toFixed(2)} ₼` : "—"}
           </div>
         </div>
@@ -161,7 +161,7 @@ export default function Borclar({ db_data }) {
                   <td style={tdStyle("var(--success-text)")}>
                     {r.yigilan > 0 ? r.yigilan.toFixed(2) : "—"}
                   </td>
-                  <td style={tdStyle("var(--success-text)")}>
+                  <td style={tdStyle("var(--text2)")}>
                     {r.dayReturn > 0 ? `-${r.dayReturn.toFixed(2)}` : "—"}
                   </td>
                   <td style={tdStyle(r.gunSonu > 0 ? "#dc2626" : r.gunSonu < 0 ? "var(--success-text)" : "var(--text2)", true)}>
@@ -181,7 +181,7 @@ export default function Borclar({ db_data }) {
                 <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
                   {totYigilan > 0 ? totYigilan.toFixed(2) : "—"}
                 </td>
-                <td style={tdStyle("var(--success-text)", true, "var(--bg2)")}>
+                <td style={tdStyle("var(--text2)", true, "var(--bg2)")}>
                   {totReturn > 0 ? `-${totReturn.toFixed(2)}` : "—"}
                 </td>
                 <td style={tdStyle(totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text2)", true, "var(--bg2)")}>
