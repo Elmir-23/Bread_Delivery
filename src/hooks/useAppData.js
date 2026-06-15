@@ -53,21 +53,34 @@ const unsub = onSnapshot(ref, (snap) => {
     setDbData(snap.data());
     setLoading(false);
   } else if (!initialized) {
+    // Sənəd yoxdur — ikinci dəfə birbaşa yoxla
     getDoc(ref).then(freshSnap => {
       if (freshSnap.exists()) {
+        // Sənəd var — onSnapshot timing xətası idi, real datanı istifadə et
         initialized = true;
         setDbData(freshSnap.data());
+        setLoading(false);
       } else {
-        setDoc(ref, DEFAULT_DB);
-        setDbData(DEFAULT_DB);
-        initialized = true;
+        // Həqiqətən yoxdur — yalnız ilk qurulum üçün DEFAULT_DB yaz
+        // Amma əvvəlcə bir daha yoxla ki, artıq initialized olmasın
+        if (!initialized) {
+          setDoc(ref, DEFAULT_DB);
+          setDbData(DEFAULT_DB);
+          initialized = true;
+        }
+        setLoading(false);
       }
-      setLoading(false);
     }).catch((e) => {
+      // Bağlantı xətası — HEÇ NƏ YAZMA, sadəcə xəta göstər
       console.error("Firestore bağlantı xətası:", e);
       setLoading(false);
+      // Data silinmir — istifadəçi interneti düzəldib yeniləyəndə düzgün yüklənəcək
     });
   }
+}, (error) => {
+  // onSnapshot özü xəta verdikdə — HEÇ NƏ YAZMA
+  console.error("onSnapshot xətası:", error);
+  setLoading(false);
 });
 
     return () => unsub();
