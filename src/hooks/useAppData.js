@@ -81,9 +81,16 @@ const unsub = onSnapshot(ref, (snap) => {
     return () => unsub();
   }, []);
 
+  const upd = async (newData) => {
+    if (!navigator.onLine) { setToast("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); setTimeout(() => setToast(""), 2200); return; }
+    setDbData(newData);
+    await setDoc(doc(db, "app", "data"), newData);
+  };
+  const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
+
   useEffect(() => {
-    const handleOffline = () => toast$("📡 İnternet bağlantısı kəsildi!");
-    const handleOnline  = () => toast$("✅ İnternet bərpa olundu!");
+    const handleOffline = () => { setToast("📡 İnternet bağlantısı kəsildi!"); setTimeout(() => setToast(""), 3000); };
+    const handleOnline  = () => { setToast("✅ İnternet bərpa olundu!"); setTimeout(() => setToast(""), 3000); };
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online",  handleOnline);
     return () => {
@@ -91,13 +98,6 @@ const unsub = onSnapshot(ref, (snap) => {
       window.removeEventListener("online",  handleOnline);
     };
   }, []);
-
-  const upd = async (newData) => {
-    if (!navigator.onLine) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return; }
-    setDbData(newData);
-    await setDoc(doc(db, "app", "data"), newData);
-  };
-  const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
   const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
 
