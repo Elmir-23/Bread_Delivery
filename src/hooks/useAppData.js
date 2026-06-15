@@ -81,7 +81,11 @@ const unsub = onSnapshot(ref, (snap) => {
     return () => unsub();
   }, []);
 
-  const upd = async (newData) => { setDbData(newData); await setDoc(doc(db, "app", "data"), newData); };
+  const upd = async (newData) => {
+    if (!navigator.onLine) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return; }
+    setDbData(newData);
+    await setDoc(doc(db, "app", "data"), newData);
+  };
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
   const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
@@ -303,6 +307,7 @@ const saveExpense = async (dateOverride, valsOverride) => {
   };
 
   const saveShops = async () => {
+    if (!shopEdits || shopEdits.length === 0) { toast$("Mağaza siyahısı boşdur — saxlanılmadı"); return; }
     const before = db_data.shops;
     const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, damiryolu: s.railStr !== "" ? parseFloat(s.railStr) : null }));
     await upd({ ...db_data, shops });
