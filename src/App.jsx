@@ -85,6 +85,16 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
     </div>
   );
 
+  if (db_data === "offline") return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "var(--bg)", gap: 16, padding: "2rem" }}>
+      <style>{CSS}</style>
+      <div style={{ fontSize: 48 }}>📡</div>
+      <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text)" }}>İnternet bağlantısı yoxdur</div>
+      <div style={{ fontSize: 13, color: "var(--text2)", textAlign: "center" }}>Zəhmət olmasa internetə qoşulub yenidən cəhd edin</div>
+      <button onClick={() => window.location.reload()} style={{ padding: "10px 24px", fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer", marginTop: 8 }}>🔄 Yenilə</button>
+    </div>
+  );
+
   const ownerTabs = [
     ["dashboard", "Satış"],
     ["reports", "Hesabatlar"],
