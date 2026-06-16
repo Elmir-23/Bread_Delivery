@@ -255,7 +255,9 @@ export function useAppData(userEmail) {
   };
 
 const saveExpense = async (dateOverride, valsOverride) => {
-    const TODAY = dateOverride || todayStr();
+    // Müdafiə: onClick birbaşa event ötürə bilər — yalnız string tarixi qəbul et
+    const safeDate = typeof dateOverride === "string" ? dateOverride : null;
+    const TODAY = safeDate || todayStr();
     const vals = valsOverride || expVals;
     const newEntries = [];
     EXP_CATS.forEach(cat => {
@@ -278,7 +280,7 @@ const saveExpense = async (dateOverride, valsOverride) => {
     const ok = await upd({ ...db_data, expenses });
     if (!ok) return;
     logAction("expense_add", userEmail, { date: TODAY, entries: newEntries });
-    if (!dateOverride) {
+    if (!safeDate) {
       setExpVals({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
       setExpView("list");
     }
