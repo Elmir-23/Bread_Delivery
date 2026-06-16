@@ -6,6 +6,22 @@ import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
 import { buildCSV, loadArchives, triggerArchiveIfNeeded, getTodayKey } from "../services/archive";
 import { logAction } from "../services/logger";
 
+// Köhnə {tarix: rəqəm} formatını {tarix: {amount, confirmed}} formatına çevirir
+// Köhnə rəqəm = artıq verilmiş/təsdiqlənmiş say kimi qəbul edilir
+const normalizeHandover = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return { amount: raw, confirmed: true };
+  if (typeof raw === "object" && "amount" in raw) return raw;
+  return null;
+};
+
+// Yalnız təsdiqlənmiş (confirmed: true) olan təhvilin məbləğini qaytarır
+const confirmedAmount = (raw) => {
+  const h = normalizeHandover(raw);
+  if (!h) return 0;
+  return h.confirmed ? (h.amount || 0) : 0;
+};
+
 export function useAppData(userEmail) {
   const [db_data, setDbData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -254,7 +270,7 @@ export function useAppData(userEmail) {
     toast$("Borc yeniləndi ✓");
   };
 
-const saveExpense = async (dateOverride, valsOverride) => {
+  const saveExpense = async (dateOverride, valsOverride) => {
     // Müdafiə: onClick birbaşa event ötürə bilər — yalnız string tarixi qəbul et
     const safeDate = typeof dateOverride === "string" ? dateOverride : null;
     const TODAY = safeDate || todayStr();
@@ -341,6 +357,62 @@ const saveExpense = async (dateOverride, valsOverride) => {
       logAction("reset_failed", userEmail, { reason: String(e) });
       toast$("❌ Xəta baş verdi — sıfırlama edilmədi");
     }
+  };
+
+  // ── Kassa hesablama köməkçisi ──
+  // Bütün tarixlər üzrə: yalnız confirmed=true olan təhvili kassadan çıxarır
+  const _calcKassaFromData = (data, handoversOverride) => {
+    const handovers = handoversOverride !== undefined ? handoversOverride : (data.handovers || {});
+    const allDates = [...new Set([
+      ...Object.keys(data.debtPayments || {}),
+      ...Object.keys(data.expenses || {}),
+      ...Object.keys(handovers),
+    ])].sort();
+    let kassa = data.kassaAdjustment || 0;
+    allDates.forEach(date => {
+      const yigilan = Object.values(data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const exp = (data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+      const tehvil = confirmedAmount(handovers[date]);
+      kassa += yigilan - exp - tehvil;
+    });
+    return parseFloat(kassa.toFixed(2));
+  };
+
+  // Sürücü təhvili daxil edir (confirmed: false) — kassaya təsir etmir
+  const saveHandover = async (amount, dateOverride) => {
+    const TODAY = dateOverride || todayStr();
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt < 0) { toast$("Düzgün məbləğ daxil edin"); return; }
+    const handovers = { ...(db_data.handovers || {}) };
+    // Əgər artıq confirmed varsa, sürücü yenidən dəyişə bilməz
+    const existing = normalizeHandover(handovers[TODAY]);
+    if (existing && existing.confirmed) {
+      toast$("Bu günün təhvili artıq təsdiqlənib");
+      return;
+    }
+    // Yeni format: {amount, confirmed: false}
+    handovers[TODAY] = { amount: amt, confirmed: false };
+    // Kassa dəyişmir — yalnız kassaBalance-i yenidən hesabla (confirmed olmayan nəzərə alınmır)
+    const newKassaBalance = _calcKassaFromData(db_data, handovers);
+    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    if (!ok) return;
+    logAction("handover_save", userEmail, { date: TODAY, amount: amt, confirmed: false });
+    toast$("Təhvil saxlanıldı ✓");
+  };
+
+  // Sahibkar təhvili təsdiqləyir (confirmed: true) — kassadan çıxır
+  const confirmHandover = async (dateOverride) => {
+    const TODAY = dateOverride || todayStr();
+    const handovers = { ...(db_data.handovers || {}) };
+    const existing = normalizeHandover(handovers[TODAY]);
+    if (!existing || existing.amount <= 0) { toast$("Təsdiqlənəcək təhvil yoxdur"); return; }
+    if (existing.confirmed) { toast$("Artıq təsdiqlənib"); return; }
+    handovers[TODAY] = { amount: existing.amount, confirmed: true };
+    const newKassaBalance = _calcKassaFromData(db_data, handovers);
+    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    if (!ok) return;
+    logAction("handover_confirm", userEmail, { date: TODAY, amount: existing.amount, kassaBalance: newKassaBalance });
+    toast$("Təhvil təsdiqləndi ✓");
   };
 
   const calcStats = (period) => {
@@ -439,31 +511,6 @@ const saveExpense = async (dateOverride, valsOverride) => {
     toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
   };
 
-  const saveHandover = async (amount, dateOverride) => {
-    const TODAY = dateOverride || todayStr();
-    const amt = parseFloat(amount) || 0;
-    if (amt < 0) { toast$("Məbləğ mənfi ola bilməz"); return; }
-    const handovers = { ...(db_data.handovers || {}) };
-    handovers[TODAY] = amt;
-    const allDates = [...new Set([
-      ...Object.keys(db_data.debtPayments || {}),
-      ...Object.keys(db_data.expenses || {}),
-      ...Object.keys(handovers),
-    ])].sort();
-    let kassa = db_data.kassaAdjustment || 0;
-    allDates.forEach(date => {
-      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
-      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-      const tehvil = handovers[date] !== undefined ? handovers[date] : 0;
-      kassa += yigilan - exp - tehvil;
-    });
-    const newKassaBalance = parseFloat(kassa.toFixed(2));
-    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
-    if (!ok) return;
-    logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
-    toast$("Təhvil saxlanıldı ✓");
-  };
-
   const saveKassaAdjustment = async (targetBalance) => {
     const target = parseFloat(targetBalance);
     if (isNaN(target)) { toast$("Düzgün məbləğ daxil edin"); return; }
@@ -476,7 +523,7 @@ const saveExpense = async (dateOverride, valsOverride) => {
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-      const tehvil = db_data.handovers?.[date] !== undefined ? db_data.handovers[date] : 0;
+      const tehvil = confirmedAmount(db_data.handovers?.[date]);
       currentWithoutAdj += yigilan - exp - tehvil;
     });
     const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
@@ -515,6 +562,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
     saveEditDebt, saveEditCollected, saveExpense, deleteExpense,
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
-    savePrices, changePin, saveHandover, saveKassaAdjustment,
+    savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
+    // normalizeHandover köməkçisi — Dashboard-da istifadə üçün export
+    normalizeHandover,
   };
 }
