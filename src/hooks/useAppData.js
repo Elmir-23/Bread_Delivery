@@ -126,16 +126,26 @@ export function useAppData(userEmail) {
     };
   }, []);
 
+  // upd: uğurlu olduqda true, uğursuz olduqda false qaytarır.
+  // setDoc 4s timeout ilə yarışdırılır — offline-da setDoc cavab vermədiyi üçün
+  // bu, internet kəsilməsini ən etibarlı aşkarlayan mexanizmdir.
   const upd = async (newData) => {
-    if (!isOnlineRef.current) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return; }
+    if (!isOnlineRef.current) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return false; }
+    const prevData = db_data;
     setDbData(newData);
     try {
-      await setDoc(doc(db, "app", "data"), newData);
+      await Promise.race([
+        setDoc(doc(db, "app", "data"), newData),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
+      ]);
+      return true;
     } catch (e) {
-      // setDoc uğursuz oldu — internet getmiş ola bilər
+      // setDoc uğursuz/timeout — internet yoxdur
       _setIsOnline(false);
+      setDbData(prevData); // optimistik dəyişikliyi geri qaytar
       toast$("❌ Saxlanılmadı — internet bağlantısı yoxdur");
       console.error("upd xətası:", e);
+      return false;
     }
   };
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
@@ -186,7 +196,8 @@ export function useAppData(userEmail) {
     const debts = { ...(nd.debts || {}) };
     debts[selShop] = (debts[selShop] || 0) - prevVal + newVal;
     nd.debts = debts;
-    await upd(nd);
+    const ok = await upd(nd);
+    if (!ok) return;
     logAction("delivery_save", userEmail, { shop: db_data.shops[selShop]?.name, session: selSess, before: prev || null, after: obj });
     toast$("Saxlanıldı ✓"); setTimeout(() => setView("session"), 300);
   };
@@ -201,7 +212,8 @@ export function useAppData(userEmail) {
     const debtPayments = { ...(db_data.debtPayments || {}) };
     if (!debtPayments[TODAY]) debtPayments[TODAY] = {};
     debtPayments[TODAY][selShop] = (debtPayments[TODAY][selShop] || 0) + collected;
-    await upd({ ...db_data, debts, debtPayments });
+    const ok = await upd({ ...db_data, debts, debtPayments });
+    if (!ok) return;
     logAction("debt_collect", userEmail, { shop: db_data.shops[selShop]?.name, collected, debtBefore: before, debtAfter: debts[selShop] });
     setCollectedInput("");
     toast$("Borc yeniləndi ✓");
@@ -261,7 +273,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
       }
     });
     expenses[TODAY] = existing;
-    await upd({ ...db_data, expenses });
+    const ok = await upd({ ...db_data, expenses });
+    if (!ok) return;
     logAction("expense_add", userEmail, { date: TODAY, entries: newEntries });
     if (!dateOverride) {
       setExpVals({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
