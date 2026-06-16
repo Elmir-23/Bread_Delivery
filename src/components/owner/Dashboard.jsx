@@ -3,9 +3,22 @@ import { c } from "../../styles/styles";
 import { todayStr, addDays } from "../../utils/dates";
 import { EXP_CATS } from "../../constants";
 
-export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, saveHandover }) {
-  const [handoverInput, setHandoverInput] = useState("");
+// Köhnə {tarix: rəqəm} formatını normallaşdırır
+const normalizeHandover = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return { amount: raw, confirmed: true };
+  if (typeof raw === "object" && "amount" in raw) return raw;
+  return null;
+};
 
+// Yalnız confirmed olanı kassa üçün sayır
+const confirmedAmount = (raw) => {
+  const h = normalizeHandover(raw);
+  if (!h) return 0;
+  return h.confirmed ? (h.amount || 0) : 0;
+};
+
+export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, saveHandover, confirmHandover }) {
   const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
   const { totExp } = calcExpenses(dashPeriod);
 
@@ -16,10 +29,10 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
 
   // ── BLOK A: dövr filtrli hesablamalar ──
 
-  // Təhvil verilən — dövr ərzində
+  // Təhvil verilən — dövr ərzində (yalnız confirmed olanlar göstərilir)
   const totHandover = Object.entries(db_data.handovers || {})
     .filter(([d]) => d >= s && d <= t)
-    .reduce((a, [, v]) => a + v, 0);
+    .reduce((a, [, v]) => a + confirmedAmount(v), 0);
 
   // Qaytarılan çörəyin dəyəri — dövr ərzində (yalnız səhər qalığı)
   const totReturnVal = (() => {
@@ -48,8 +61,7 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
 
   // ── BLOK B: gündəlik (dövrdən asılı deyil) ──
 
-  // Kassa = kassaAdjustment + bütün tarixlər üzrə (yığılan − xərc − təhvil)
-  // kassaStart = bu günə qədər (bu gün xaric) qalıq = günə başlanan qalıq
+  // Kassa = kassaAdjustment + bütün tarixlər üzrə (yığılan − xərc − TƏSDİQLƏNMİŞ_təhvil)
   const { kassaBalance, kassaStart } = (() => {
     const allDates = [...new Set([
       ...Object.keys(db_data.debtPayments || {}),
@@ -61,10 +73,10 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-      const tehvil = db_data.handovers?.[date] !== undefined ? db_data.handovers[date] : 0;
+      const tehvil = confirmedAmount(db_data.handovers?.[date]);
       const delta = yigilan - exp - tehvil;
       kassa += delta;
-      if (date < t) start += delta; // yalnız bugündən əvvəlki tarixlər
+      if (date < t) start += delta;
     });
     return {
       kassaBalance: parseFloat(kassa.toFixed(2)),
@@ -72,7 +84,11 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
     };
   })();
 
-  const todayHandover = db_data.handovers?.[todayStr()] || 0;
+  // Bugünkü təhvil vəziyyəti
+  const rawToday = db_data.handovers?.[todayStr()];
+  const todayHandover = normalizeHandover(rawToday);
+  const isPending = todayHandover && !todayHandover.confirmed && todayHandover.amount > 0;
+  const isConfirmed = todayHandover && todayHandover.confirmed;
 
   const sectionLabel = { fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 };
 
@@ -118,6 +134,7 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
         <div style={c.metric}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
           <div style={{ fontSize: 18, fontWeight: 700 }}>{totHandover > 0 ? `${totHandover.toFixed(2)} ₼` : "—"}</div>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>Yalnız təsdiqlənnənlər</div>
         </div>
       </div>
 
@@ -204,21 +221,64 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
           </div>
         </div>
 
-        {/* Təhvil daxil et */}
-        <div style={{ ...c.block, marginBottom: "1rem" }}>
-          <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
-            Sürücünün bu gün sahibkara verdiyi məbləğ
-            {todayHandover > 0 && <span style={{ color: "var(--success-text)", marginLeft: 8 }}>Cari: {todayHandover.toFixed(2)} ₼</span>}
+        {/* Təhvil vəziyyəti */}
+        {isPending ? (
+          /* Sürücü daxil edib — sahibkar hələ təsdiqləməyib */
+          <div style={{ ...c.block, border: "1px solid #fbbf24", background: "rgba(251,191,36,0.06)", marginBottom: "1rem" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#92400e", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 16 }}>⏳</span> Sürücü təhvil daxil edib — təsdiq gözlənilir
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: "var(--text)" }}>
+                  {todayHandover.amount.toFixed(2)} ₼
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
+                  Kassadan çıxmır — təsdiq gözlənilir
+                </div>
+              </div>
+              <button
+                style={{
+                  padding: "12px 18px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  border: "none",
+                  borderRadius: 12,
+                  background: "#16a34a",
+                  color: "#fff",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+                onClick={() => confirmHandover()}
+              >
+                ✓ Təsdiqlə
+              </button>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input type="number" min={0} step={0.01} value={handoverInput} onChange={e => setHandoverInput(e.target.value)}
-              placeholder="0.00"
-              style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
-            <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
-            <button style={{ padding: "10px 16px", fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
-              onClick={() => { saveHandover(handoverInput); setHandoverInput(""); }}>Saxla</button>
+        ) : isConfirmed ? (
+          /* Təsdiqlənib */
+          <div style={{ ...c.block, border: "1px solid #86efac", background: "rgba(134,239,172,0.08)", marginBottom: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 20 }}>✅</span>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--success-text, #16a34a)" }}>
+                  {todayHandover.amount.toFixed(2)} ₼ — Təhvil təsdiqləndi
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
+                  Kassadan çıxarıldı ✓
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Hələ heç nə daxil edilməyib */
+          <div style={{ ...c.block, marginBottom: "1rem" }}>
+            <div style={{ fontSize: 13, color: "var(--text2)" }}>
+              Sürücü hələ bu günün təhvilini daxil etməyib.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
