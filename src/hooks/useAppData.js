@@ -235,7 +235,8 @@ export function useAppData(userEmail) {
     if (editSelSess === "morning") obj.leftover = { ...editEntryVals.leftover };
     const prev = db_data.deliveries?.[editDate]?.[editSelShop]?.[editSelSess] || null;
     nd.deliveries[editDate][editSelShop][editSelSess] = obj;
-    await upd(nd);
+    const ok = await upd(nd);
+    if (!ok) return;
     logAction("delivery_edit", userEmail, { date: editDate, shop: db_data.shops[editSelShop]?.name, session: editSelSess, before: prev, after: obj });
     toast$("Saxlanıldı ✓"); setTimeout(() => setEditView("date-session"), 300);
   };
@@ -246,7 +247,8 @@ export function useAppData(userEmail) {
     const debts = { ...(db_data.debts || {}) };
     const before = debts[shopIdx] || 0;
     debts[shopIdx] = amount;
-    await upd({ ...db_data, debts });
+    const ok = await upd({ ...db_data, debts });
+    if (!ok) return;
     logAction("debt_edit", userEmail, { shop: db_data.shops[shopIdx]?.name, before, after: amount });
     setEditDebtShop(null); setEditDebtVal("");
     toast$("Borc yeniləndi ✓");
@@ -288,7 +290,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
     const deleted = expenses[date]?.[idx] || null;
     expenses[date] = expenses[date].filter((_, i) => i !== idx);
     if (!expenses[date].length) delete expenses[date];
-    await upd({ ...db_data, expenses });
+    const ok = await upd({ ...db_data, expenses });
+    if (!ok) return;
     logAction("expense_delete", userEmail, { date, deleted });
     toast$("Silindi ✓");
   };
@@ -302,7 +305,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
     const debtPayments = { ...(db_data.debtPayments || {}) };
     if (!debtPayments[date]) debtPayments[date] = {};
     if (amount === 0) { delete debtPayments[date][shopIdx]; } else { debtPayments[date][shopIdx] = amount; }
-    await upd({ ...db_data, debts, debtPayments });
+    const ok = await upd({ ...db_data, debts, debtPayments });
+    if (!ok) return;
     logAction("collected_edit", userEmail, { date, shop: db_data.shops[shopIdx]?.name, before: oldAmount, after: amount });
     toast$("Yığılan yeniləndi ✓");
   };
@@ -325,7 +329,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
         return;
       }
       await logAction("reset", userEmail, { archiveId: archiveRef.id, rowCount, debtsBefore: db_data.debts || {} });
-      await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });
+      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });
+      if (!ok) return;
       setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
       const list = await loadArchives(); setArchives(list);
       toast$("✓ Arxivləndi və sıfırlandı");
@@ -384,7 +389,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
     if (!shopEdits || shopEdits.length === 0) { toast$("Mağaza siyahısı boşdur — saxlanılmadı"); return; }
     const before = db_data.shops;
     const shops = shopEdits.map(s => ({ name: s.name.trim() || s.name, kura: s.kuraStr !== "" ? parseFloat(s.kuraStr) : null, damiryolu: s.railStr !== "" ? parseFloat(s.railStr) : null }));
-    await upd({ ...db_data, shops });
+    const ok = await upd({ ...db_data, shops });
+    if (!ok) return;
     logAction("shops_save", userEmail, { before, after: shops });
     toast$("Mağazalar saxlanıldı ✓");
   };
@@ -416,7 +422,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
   const savePrices = async () => {
     const before = db_data.prices;
     const after = { kura: parseFloat(settPrices.kura) || 0, damiryolu: parseFloat(settPrices.damiryolu) || 0 };
-    await upd({ ...db_data, prices: after });
+    const ok = await upd({ ...db_data, prices: after });
+    if (!ok) return;
     logAction("prices_save", userEmail, { before, after });
     toast$("Qiymətlər saxlanıldı ✓");
   };
@@ -424,7 +431,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
   const changePin = async () => {
     if (pinOld !== db_data.pin) { toast$("Cari PIN yanlışdır"); return; }
     if (pinNew.length !== 4 || !/^\d+$/.test(pinNew)) { toast$("PIN 4 rəqəm olmalıdır"); return; }
-    await upd({ ...db_data, pin: pinNew });
+    const ok = await upd({ ...db_data, pin: pinNew });
+    if (!ok) return;
     logAction("pin_change", userEmail, {});
     toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
   };
@@ -448,7 +456,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
       kassa += yigilan - exp - tehvil;
     });
     const newKassaBalance = parseFloat(kassa.toFixed(2));
-    await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    if (!ok) return;
     logAction("handover_save", userEmail, { date: TODAY, amount: amt, kassaBalance: newKassaBalance });
     toast$("Təhvil saxlanıldı ✓");
   };
@@ -469,7 +478,8 @@ const saveExpense = async (dateOverride, valsOverride) => {
       currentWithoutAdj += yigilan - exp - tehvil;
     });
     const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
-    await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target });
+    const ok = await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target });
+    if (!ok) return;
     logAction("kassa_adjustment", userEmail, { targetBalance: target, adjustment: newAdj });
     toast$("Kassa yeniləndi ✓");
   };
