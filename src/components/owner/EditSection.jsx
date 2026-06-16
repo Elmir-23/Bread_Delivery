@@ -4,10 +4,9 @@ import { todayStr, addDays, fmtDateShort } from "../../utils/dates";
 import { SESS, EXP_CATS } from "../../constants";
 import EntryForm from "../delivery/EntryForm";
 
-export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, editDebtShop, setEditDebtShop, editDebtVal, setEditDebtVal, saveEditDebt, saveHandover, saveKassaAdjustment, saveExpense, deleteExpense }) {
+export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, saveHandover, saveExpense, deleteExpense }) {
   const isEditToday = editDate === todayStr();
   const [handoverEditVal, setHandoverEditVal] = useState("");
-  const [kassaEditVal, setKassaEditVal] = useState("");
   const [showExpAdd, setShowExpAdd] = useState(false);
   const [editExpVals, setEditExpVals] = useState({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
 
@@ -78,24 +77,6 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
           <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveHandover(handoverEditVal, editDate); setHandoverEditVal(""); }}>Saxla</button>
         </div>
 
-        {/* Kassa balansını düzəlt */}
-        <div style={{ ...c.block, marginBottom: 14 }}>
-          <div style={c.blockTitle}>💵 Kassa balansını düzəlt</div>
-          <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
-            Cari kassa: <strong>{(db_data.kassaBalance || 0).toFixed(2)} ₼</strong>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <input
-              type="number" step={0.01}
-              value={kassaEditVal}
-              onChange={e => setKassaEditVal(e.target.value)}
-              placeholder={(db_data.kassaBalance || 0).toFixed(2)}
-              style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-            />
-            <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
-          </div>
-          <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveKassaAdjustment(kassaEditVal); setKassaEditVal(""); }}>Saxla</button>
-        </div>
 
         {/* Xərclər bloku */}
         <div style={{ ...c.block, marginBottom: 14 }}>
@@ -214,19 +195,6 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
             </div>
             {existingCollected > 0 && <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 6 }}>Cari: {existingCollected.toFixed(2)} ₼</div>}
             <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditCollected(editSelShop, editDate, collVal)}>Saxla</button>
-          </div>
-
-          {/* Cari borcu düzəlt */}
-          <div style={{ ...c.block, marginTop: 10 }}>
-            <div style={c.blockTitle}>💳 Cari borcu düzəlt</div>
-            <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 8 }}>
-              Cari borc: <strong style={{ color: (db_data.debts?.[editSelShop] || 0) > 0 ? "#dc2626" : "var(--success-text)" }}>{(db_data.debts?.[editSelShop] || 0).toFixed(2)} ₼</strong>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <input type="number" step={0.01} value={editDebtShop === editSelShop ? editDebtVal : ""} onChange={e => { setEditDebtShop(editSelShop); setEditDebtVal(e.target.value); }} placeholder={(db_data.debts?.[editSelShop] || 0).toFixed(2)} style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
-              <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
-            </div>
-            <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => saveEditDebt(editSelShop, editDebtVal)}>Saxla</button>
           </div>
         </div>
       </div>
