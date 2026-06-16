@@ -15,7 +15,6 @@ import ChorekHesabat from "./components/ChorekHesabat";
 import Dashboard from "./components/owner/Dashboard";
 import Reports from "./components/owner/Reports";
 import EditSection from "./components/owner/EditSection";
-import ShopsMgr from "./components/owner/ShopsMgr";
 import Parametrler from "./components/owner/Parametrler";
 import Developer from "./components/owner/Developer";
 
@@ -99,7 +98,6 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
     ["dashboard", "Satış"],
     ["reports", "Hesabatlar"],
     ["edit", "Mağazaları tənzimlə"],
-    ["shops-mgr", "Mağaza əlavə et"],
     ["parametrler", "Parametrlər"],
     ...(isDeveloper ? [["developer", "🛠 Developer"]] : []),
   ];
@@ -182,8 +180,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
               {ownerTab === "dashboard" && <Dashboard db_data={db_data} dashPeriod={dashPeriod} setDashPeriod={setDashPeriod} calcStats={calcStats} calcExpenses={calcExpenses} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} saveHandover={saveHandover} saveKassaAdjustment={saveKassaAdjustment} saveExpense={saveExpense} deleteExpense={deleteExpense} />}
               {ownerTab === "reports" && <Reports db_data={db_data} repPeriod={repPeriod} setRepPeriod={setRepPeriod} calcStats={calcStats} shopKura={shopKura} shopRail={shopRail} toast$={toast$} />}
               {ownerTab === "edit" && <EditSection db_data={db_data} editDate={editDate} setEditDate={setEditDate} editView={editView} setEditView={setEditView} editSelShop={editSelShop} setEditSelShop={setEditSelShop} editSelSess={editSelSess} editEntryVals={editEntryVals} adjEdit={adjEdit} saveEditEntry={saveEditEntry} openEditEntry={openEditEntry} editCollected={editCollected} setEditCollected={setEditCollected} saveEditCollected={saveEditCollected} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} saveHandover={saveHandover} saveKassaAdjustment={saveKassaAdjustment} />}
-              {ownerTab === "shops-mgr" && <ShopsMgr db_data={db_data} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
-              {ownerTab === "parametrler" && <Parametrler db_data={db_data} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} />}
+              {ownerTab === "parametrler" && <Parametrler db_data={db_data} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
               {ownerTab === "developer" && isDeveloper && <Developer db_data={db_data} archives={archives} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} toast$={toast$} />}
               <div style={{ padding: "0 1rem 1.5rem" }}>
                 <button style={{ ...c.outlineBtn, color: "#dc2626", borderColor: "#fca5a5" }} onClick={onSignOut}>Çıxış</button>
