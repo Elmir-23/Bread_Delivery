@@ -100,14 +100,8 @@ export default function Borclar({ db_data }) {
         <button style={c.dateBtn(isToday)} onClick={() => { if (!isToday) setSelDate(d => addDays(d, 1)); }}>›</button>
       </div>
 
-      {/* Kartlar — 3 sırada */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: 8 }}>
-        <div style={c.metric}>
-          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Bu günkü borc</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: totDayGiven > 0 ? "#dc2626" : "var(--text)" }}>
-            {totDayGiven > 0 ? totDayGiven.toFixed(2) + " ₼" : "—"}
-          </div>
-        </div>
+      {/* Kartlar — 3 sırada: Yığılan → Qaytarılan → Gün sonu */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
         <div style={c.metricGreen}>
           <div style={{ fontSize: 10, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--collected-text)" }}>
@@ -120,13 +114,11 @@ export default function Borclar({ db_data }) {
             {totReturn > 0 ? `-${totReturn.toFixed(2)} ₼` : "—"}
           </div>
         </div>
-      </div>
-
-      {/* Gün sonu borcu — tam en */}
-      <div style={{ ...c.metric, margin: "0 1rem 1rem", border: `1px solid ${totGunSonu > 0 ? "#fca5a5" : "var(--border)"}` }}>
-        <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Gün sonu borcun cəmi</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text)" }}>
-          {totGunSonu.toFixed(2)} ₼
+        <div style={{ ...c.metric, border: `1px solid ${totGunSonu > 0 ? "#fca5a5" : "var(--border)"}` }}>
+          <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Gün sonu borc</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: totGunSonu > 0 ? "#dc2626" : totGunSonu < 0 ? "var(--success-text)" : "var(--text)" }}>
+            {totGunSonu.toFixed(2)} ₼
+          </div>
         </div>
       </div>
 
