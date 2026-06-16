@@ -3,10 +3,8 @@ import { c } from "../../styles/styles";
 import { todayStr, addDays } from "../../utils/dates";
 import { EXP_CATS } from "../../constants";
 
-export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, saveHandover, saveKassaAdjustment }) {
+export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, saveHandover }) {
   const [handoverInput, setHandoverInput] = useState("");
-  const [kassaInput, setKassaInput] = useState("");
-  const [showKassaEdit, setShowKassaEdit] = useState(false);
 
   const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
   const { totExp } = calcExpenses(dashPeriod);
@@ -51,20 +49,27 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
   // ── BLOK B: gündəlik (dövrdən asılı deyil) ──
 
   // Kassa = kassaAdjustment + bütün tarixlər üzrə (yığılan − xərc − təhvil)
-  const kassaBalance = (() => {
+  // kassaStart = bu günə qədər (bu gün xaric) qalıq = günə başlanan qalıq
+  const { kassaBalance, kassaStart } = (() => {
     const allDates = [...new Set([
       ...Object.keys(db_data.debtPayments || {}),
       ...Object.keys(db_data.expenses || {}),
       ...Object.keys(db_data.handovers || {}),
     ])].sort();
     let kassa = db_data.kassaAdjustment || 0;
+    let start = db_data.kassaAdjustment || 0;
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
       const tehvil = db_data.handovers?.[date] !== undefined ? db_data.handovers[date] : 0;
-      kassa += yigilan - exp - tehvil;
+      const delta = yigilan - exp - tehvil;
+      kassa += delta;
+      if (date < t) start += delta; // yalnız bugündən əvvəlki tarixlər
     });
-    return parseFloat(kassa.toFixed(2));
+    return {
+      kassaBalance: parseFloat(kassa.toFixed(2)),
+      kassaStart: parseFloat(start.toFixed(2)),
+    };
   })();
 
   const todayHandover = db_data.handovers?.[todayStr()] || 0;
@@ -188,34 +193,15 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
       <div style={{ borderTop: "1px solid var(--border)", marginTop: 24, paddingTop: 18 }}>
         <div style={sectionLabel}>💵 Bu gün — kassa & təhvil</div>
 
-        {/* Kassa */}
+        {/* Kassa — read-only (kumulyativ, mənbə datalardan hesablanır) */}
         <div style={{ ...c.metric, marginBottom: 8, border: `1px solid ${kassaBalance >= 0 ? "var(--border)" : "#fca5a5"}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Kassa qalığı</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: kassaBalance >= 0 ? "var(--text)" : "#dc2626" }}>
-                {kassaBalance.toFixed(2)} ₼
-              </div>
-            </div>
-            <button onClick={() => { setShowKassaEdit(!showKassaEdit); setKassaInput(kassaBalance.toFixed(2)); }}
-              style={{ fontSize: 11, padding: "4px 10px", border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }}>
-              ✏️ Düzəlt
-            </button>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Kassa qalığı</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: kassaBalance >= 0 ? "var(--text)" : "#dc2626" }}>
+            {kassaBalance.toFixed(2)} ₼
           </div>
-          {showKassaEdit && (
-            <div style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
-              <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>Kassanın olması lazım olan məbləğini daxil edin</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="number" step={0.01} value={kassaInput} onChange={e => setKassaInput(e.target.value)}
-                  placeholder={kassaBalance.toFixed(2)}
-                  style={{ flex: 1, padding: "8px 10px", fontSize: 15, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "var(--bg)", color: "var(--text)", textAlign: "right" }} />
-                <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
-                <button style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 8, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
-                  onClick={() => { saveKassaAdjustment(kassaInput); setShowKassaEdit(false); }}>Saxla</button>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 6 }}>Cari kassa: {kassaBalance.toFixed(2)} ₼</div>
-            </div>
-          )}
+          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 4 }}>
+            Günə başlanan qalıq: <span style={{ fontWeight: 600, color: "var(--text)" }}>{kassaStart.toFixed(2)} ₼</span>
+          </div>
         </div>
 
         {/* Təhvil daxil et */}
