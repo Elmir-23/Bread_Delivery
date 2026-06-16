@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "../firebase";
 import { doc, onSnapshot, setDoc, getDoc, collection, addDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
@@ -42,62 +42,84 @@ export function useAppData(userEmail) {
   const [editDebtShop, setEditDebtShop] = useState(null);
   const [editDebtVal, setEditDebtVal] = useState("");
   const [confirmDeleteShop, setConfirmDeleteShop] = useState(null);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const isOnlineRef = useRef(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const _setIsOnline = (v) => { isOnlineRef.current = v; setIsOnline(v); };
 
   useEffect(() => {
     const ref = doc(db, "app", "data");
     let initialized = false;
+    let cancelled = false;
+    let offlineTimer = null;
 
-const unsub = onSnapshot(ref, (snap) => {
-  if (snap.exists()) {
-    initialized = true;
-    setDbData(snap.data());
-    setLoading(false);
-  } else if (!initialized) {
-    getDoc(ref).then(freshSnap => {
-      if (freshSnap.exists()) {
-        initialized = true;
-        setDbData(freshSnap.data());
-        setLoading(false);
-      } else {
-        if (!initialized) {
-          setDoc(ref, DEFAULT_DB);
-          setDbData(DEFAULT_DB);
-          initialized = true;
+    // Bağlantı vəziyyəti: snap.metadata.fromCache=true => Firestore serverə çata bilmir (offline).
+    // Start-da qısa "fromCache" flash-ını əngəlləmək üçün 1.5s debounce — yalnız davamlı offline
+    // olduqda banner göstərilir. Online olan kimi dərhal bərpa olunur.
+    const updateConn = (fromCache) => {
+      if (cancelled) return;
+      if (fromCache) {
+        if (offlineTimer == null) {
+          offlineTimer = setTimeout(() => { if (!cancelled) _setIsOnline(false); }, 1500);
         }
-        setLoading(false);
+      } else {
+        if (offlineTimer != null) { clearTimeout(offlineTimer); offlineTimer = null; }
+        _setIsOnline(true);
       }
-    }).catch((e) => {
-      console.error("Firestore bağlantı xətası:", e);
+    };
+
+    const unsub = onSnapshot(ref, { includeMetadataChanges: true }, (snap) => {
+      updateConn(snap.metadata.fromCache);
+      if (snap.exists()) {
+        initialized = true;
+        setDbData(snap.data());
+        setLoading(false);
+      } else if (!initialized) {
+        getDoc(ref).then(freshSnap => {
+          if (freshSnap.exists()) {
+            initialized = true;
+            setDbData(freshSnap.data());
+            setLoading(false);
+          } else {
+            if (!initialized) {
+              setDoc(ref, DEFAULT_DB);
+              setDbData(DEFAULT_DB);
+              initialized = true;
+            }
+            setLoading(false);
+          }
+        }).catch((e) => {
+          console.error("Firestore bağlantı xətası:", e);
+          setDbData("offline");
+          setLoading(false);
+        });
+      }
+    }, (error) => {
+      console.error("onSnapshot xətası:", error);
       setDbData("offline");
       setLoading(false);
     });
-  }
-}, (error) => {
-  console.error("onSnapshot xətası:", error);
-  setDbData("offline");
-  setLoading(false);
-});
 
-    return () => unsub();
+    // Brauzer "offline" event-i — interfeys düşəndə dərhal (instant) banner üçün.
+    const onBrowserOffline = () => {
+      if (offlineTimer != null) { clearTimeout(offlineTimer); offlineTimer = null; }
+      if (!cancelled) _setIsOnline(false);
+    };
+    window.addEventListener("offline", onBrowserOffline);
+
+    return () => {
+      cancelled = true;
+      if (offlineTimer != null) clearTimeout(offlineTimer);
+      window.removeEventListener("offline", onBrowserOffline);
+      unsub();
+    };
   }, []);
 
   const upd = async (newData) => {
-    if (!navigator.onLine) { setToast("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); setTimeout(() => setToast(""), 2200); return; }
+    if (!isOnlineRef.current) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return; }
     setDbData(newData);
     await setDoc(doc(db, "app", "data"), newData);
   };
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
-
-  useEffect(() => {
-    const handleOffline = () => { setToast("📡 İnternet bağlantısı kəsildi!"); setTimeout(() => setToast(""), 3000); };
-    const handleOnline  = () => { setToast("✅ İnternet bərpa olundu!"); setTimeout(() => setToast(""), 3000); };
-    window.addEventListener("offline", handleOffline);
-    window.addEventListener("online",  handleOnline);
-    return () => {
-      window.removeEventListener("offline", handleOffline);
-      window.removeEventListener("online",  handleOnline);
-    };
-  }, []);
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
   const shopRail = (i) => db_data?.shops[i]?.damiryolu ?? db_data?.prices?.damiryolu ?? 0.65;
 
@@ -433,6 +455,7 @@ const saveExpense = async (dateOverride, valsOverride) => {
     editDebtShop, setEditDebtShop,
     editDebtVal, setEditDebtVal,
     confirmDeleteShop, setConfirmDeleteShop,
+    isOnline,
     shopKura, shopRail, upd, toast$,
     openDeliveryEntry, adjDelivery, saveDeliveryEntry,
     saveDebtCollection, openEditEntry, saveEditEntry,
