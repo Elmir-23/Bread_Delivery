@@ -3,6 +3,21 @@ import { c } from "../styles/styles";
 import { todayStr, addDays, fmtDate } from "../utils/dates";
 import { SESS } from "../constants";
 
+// Köhnə {tarix: rəqəm} formatını normallaşdırır (geriyə uyğunluq)
+const normalizeHandover = (raw) => {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return { amount: raw, confirmed: true };
+  if (typeof raw === "object" && "amount" in raw) return raw;
+  return null;
+};
+
+// Yalnız təsdiqlənmiş təhvili kassa üçün sayır
+const confirmedAmount = (raw) => {
+  const h = normalizeHandover(raw);
+  if (!h) return 0;
+  return h.confirmed ? (h.amount || 0) : 0;
+};
+
 export default function Borclar({ db_data }) {
   const TODAY = todayStr();
   const [selDate, setSelDate] = useState(TODAY);
@@ -68,6 +83,24 @@ export default function Borclar({ db_data }) {
   const totGunSonu   = shopRows.reduce((a, r) => a + r.gunSonu, 0);
   const totUmumiBorc = parseFloat((totEvvelki + totDayGiven).toFixed(2));
 
+  // Kassa qalığı — Dashboard ilə eyni hesablama (kumulyativ, tarixdən asılı deyil)
+  // kassaAdjustment + Σ(yığılan − xərc − təsdiqlənmiş_təhvil), bütün tarixlər üzrə
+  const kassaBalance = (() => {
+    const allDates = [...new Set([
+      ...Object.keys(db_data.debtPayments || {}),
+      ...Object.keys(db_data.expenses || {}),
+      ...Object.keys(db_data.handovers || {}),
+    ])];
+    let kassa = db_data.kassaAdjustment || 0;
+    allDates.forEach(date => {
+      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+      const tehvil = confirmedAmount(db_data.handovers?.[date]);
+      kassa += yigilan - exp - tehvil;
+    });
+    return parseFloat(kassa.toFixed(2));
+  })();
+
   const thStyle = (center) => ({
     padding: "6px 8px", fontSize: 10, fontWeight: 700,
     color: "var(--text2)", textAlign: center ? "center" : "left",
@@ -92,6 +125,16 @@ export default function Borclar({ db_data }) {
 
   return (
     <div style={{ padding: "1rem 0" }}>
+
+      {/* Kassa qalığı — daimi, read-only (tarixdən asılı deyil) */}
+      <div style={{ padding: "0 1rem", marginBottom: 14 }}>
+        <div style={{ ...c.metric, border: `1px solid ${kassaBalance >= 0 ? "var(--border)" : "#fca5a5"}` }}>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>💵 Kassa qalığı</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: kassaBalance >= 0 ? "var(--text)" : "#dc2626" }}>
+            {kassaBalance.toFixed(2)} ₼
+          </div>
+        </div>
+      </div>
 
       {/* Tarix naviqasiyası */}
       <div style={{ ...c.dateRow, padding: "0 1rem", marginBottom: 12 }}>
