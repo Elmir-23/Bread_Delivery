@@ -72,17 +72,17 @@ export function useAppData(userEmail) {
         setDbData(snap.data());
         setLoading(false);
       } else if (!initialized) {
+        // Sənəd boş görünür — getDoc ilə təkrar yoxla (cache/anlıq boş cavab ola bilər)
         getDoc(ref).then(freshSnap => {
           if (freshSnap.exists()) {
             initialized = true;
             setDbData(freshSnap.data());
             setLoading(false);
           } else {
-            if (!initialized) {
-              setDoc(ref, DEFAULT_DB);
-              setDbData(DEFAULT_DB);
-              initialized = true;
-            }
+            // Sənəd HƏQİQƏTƏN yoxdur — app HEÇ BİR HALDA özü DEFAULT_DB yazmır.
+            // Yalnız developer əl ilə (Firebase Console / seed) bərpa edə bilər.
+            initialized = true;
+            setDbData("empty");
             setLoading(false);
           }
         }).catch((e) => {
@@ -146,6 +146,12 @@ export function useAppData(userEmail) {
   // setDoc 4s timeout ilə yarışdırılır — offline-da setDoc cavab vermədiyi üçün
   // bu, internet kəsilməsini ən etibarlı aşkarlayan mexanizmdir.
   const upd = async (newData) => {
+    // Qoruyucu: db_data status string-i ("empty"/"offline") olduqda heç vaxt yazma —
+    // əks halda real data zibillənə bilər.
+    if (typeof newData !== "object" || newData === null) {
+      console.error("upd: yanlış data tipi, yazma dayandırıldı");
+      return false;
+    }
     if (!isOnlineRef.current) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return false; }
     const prevData = db_data;
     setDbData(newData);
