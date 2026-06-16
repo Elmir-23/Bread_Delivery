@@ -224,17 +224,26 @@ export function useAppData(userEmail) {
 const saveExpense = async (dateOverride, valsOverride) => {
     const TODAY = dateOverride || todayStr();
     const vals = valsOverride || expVals;
-    const entries = [];
+    const newEntries = [];
     EXP_CATS.forEach(cat => {
       const amt = parseFloat(vals[cat.id]);
-      if (!isNaN(amt) && amt > 0) entries.push({ cat: cat.id, amount: amt, desc: cat.id === "diger" ? (vals.digerDesc || "") : cat.label, time: Date.now() });
+      if (!isNaN(amt) && amt > 0) newEntries.push({ cat: cat.id, amount: amt, desc: cat.id === "diger" ? (vals.digerDesc || "") : cat.label, time: Date.now() });
     });
-    if (!entries.length) { toast$("Məbləğ daxil edin"); return; }
+    if (!newEntries.length) { toast$("Məbləğ daxil edin"); return; }
     const expenses = { ...(db_data.expenses || {}) };
-    if (!expenses[TODAY]) expenses[TODAY] = [];
-    expenses[TODAY] = [...expenses[TODAY], ...entries];
+    // Kateqoriya bazlı upsert: mövcud kateqoriya varsa məbləği yenilə, yoxdursa əlavə et
+    let existing = [...(expenses[TODAY] || [])];
+    newEntries.forEach(ne => {
+      const idx = existing.findIndex(e => e.cat === ne.cat);
+      if (idx >= 0) {
+        existing[idx] = { ...existing[idx], amount: ne.amount, desc: ne.desc, time: ne.time };
+      } else {
+        existing.push(ne);
+      }
+    });
+    expenses[TODAY] = existing;
     await upd({ ...db_data, expenses });
-    logAction("expense_add", userEmail, { date: TODAY, entries });
+    logAction("expense_add", userEmail, { date: TODAY, entries: newEntries });
     if (!dateOverride) {
       setExpVals({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
       setExpView("list");
