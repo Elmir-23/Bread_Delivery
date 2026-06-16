@@ -49,26 +49,8 @@ export function useAppData(userEmail) {
   useEffect(() => {
     const ref = doc(db, "app", "data");
     let initialized = false;
-    let cancelled = false;
-    let offlineTimer = null;
 
-    // Bağlantı vəziyyəti: snap.metadata.fromCache=true => Firestore serverə çata bilmir (offline).
-    // Start-da qısa "fromCache" flash-ını əngəlləmək üçün 1.5s debounce — yalnız davamlı offline
-    // olduqda banner göstərilir. Online olan kimi dərhal bərpa olunur.
-    const updateConn = (fromCache) => {
-      if (cancelled) return;
-      if (fromCache) {
-        if (offlineTimer == null) {
-          offlineTimer = setTimeout(() => { if (!cancelled) _setIsOnline(false); }, 1500);
-        }
-      } else {
-        if (offlineTimer != null) { clearTimeout(offlineTimer); offlineTimer = null; }
-        _setIsOnline(true);
-      }
-    };
-
-    const unsub = onSnapshot(ref, { includeMetadataChanges: true }, (snap) => {
-      updateConn(snap.metadata.fromCache);
+    const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         initialized = true;
         setDbData(snap.data());
@@ -99,25 +81,62 @@ export function useAppData(userEmail) {
       setLoading(false);
     });
 
-    // Brauzer "offline" event-i — interfeys düşəndə dərhal (instant) banner üçün.
-    const onBrowserOffline = () => {
-      if (offlineTimer != null) { clearTimeout(offlineTimer); offlineTimer = null; }
-      if (!cancelled) _setIsOnline(false);
+    return () => unsub();
+  }, []);
+
+  // Connectivity aşkarlaması: 3 mexanizm birlikdə.
+  // 1) navigator.onLine + offline/online event — sürətli, amma WiFi+internetsiz halda işləmir.
+  // 2) Hər 5s ping — WiFi qoşulu, internet kəsik halı üçün.
+  // 3) upd() xətası — ən son təhlükəsizlik şəbəkəsi.
+  useEffect(() => {
+    let cancelled = false;
+    let pingTimer = null;
+
+    const checkPing = async () => {
+      if (cancelled) return;
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 3000);
+        // HEAD sorğusu — cavab body oxunmur, çox yüngüldür
+        await fetch("https://firestore.googleapis.com/", { method: "HEAD", mode: "no-cors", cache: "no-store", signal: ctrl.signal });
+        clearTimeout(t);
+        if (!cancelled) _setIsOnline(true);
+      } catch {
+        if (!cancelled) _setIsOnline(false);
+      }
     };
-    window.addEventListener("offline", onBrowserOffline);
+
+    // Başlanğıc vəziyyəti
+    _setIsOnline(navigator.onLine);
+    if (navigator.onLine) checkPing();
+
+    const onOffline = () => { if (!cancelled) { _setIsOnline(false); clearTimeout(pingTimer); } };
+    const onOnline  = () => { if (!cancelled) checkPing(); };
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online",  onOnline);
+
+    // Hər 5 saniyədə bir yoxla (WiFi var, internet yox halı)
+    pingTimer = setInterval(checkPing, 5000);
 
     return () => {
       cancelled = true;
-      if (offlineTimer != null) clearTimeout(offlineTimer);
-      window.removeEventListener("offline", onBrowserOffline);
-      unsub();
+      clearInterval(pingTimer);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online",  onOnline);
     };
   }, []);
 
   const upd = async (newData) => {
     if (!isOnlineRef.current) { toast$("❌ İnternet yoxdur — dəyişiklik saxlanılmadı"); return; }
     setDbData(newData);
-    await setDoc(doc(db, "app", "data"), newData);
+    try {
+      await setDoc(doc(db, "app", "data"), newData);
+    } catch (e) {
+      // setDoc uğursuz oldu — internet getmiş ola bilər
+      _setIsOnline(false);
+      toast$("❌ Saxlanılmadı — internet bağlantısı yoxdur");
+      console.error("upd xətası:", e);
+    }
   };
   const toast$ = (m) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const shopKura = (i) => db_data?.shops[i]?.kura ?? db_data?.prices?.kura ?? 1.5;
