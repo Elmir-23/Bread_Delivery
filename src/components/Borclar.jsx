@@ -85,20 +85,27 @@ export default function Borclar({ db_data }) {
 
   // Kassa qalığı — Dashboard ilə eyni hesablama (kumulyativ, tarixdən asılı deyil)
   // kassaAdjustment + Σ(yığılan − xərc − təsdiqlənmiş_təhvil), bütün tarixlər üzrə
-  const kassaBalance = (() => {
+  // kassaStart = bu günə qədər (bu gün xaric) = günə başlanan qalıq
+  const { kassaBalance, kassaStart } = (() => {
     const allDates = [...new Set([
       ...Object.keys(db_data.debtPayments || {}),
       ...Object.keys(db_data.expenses || {}),
       ...Object.keys(db_data.handovers || {}),
     ])];
     let kassa = db_data.kassaAdjustment || 0;
+    let start = db_data.kassaAdjustment || 0;
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
       const tehvil = confirmedAmount(db_data.handovers?.[date]);
-      kassa += yigilan - exp - tehvil;
+      const delta = yigilan - exp - tehvil;
+      kassa += delta;
+      if (date < TODAY) start += delta; // yalnız bugündən əvvəlki tarixlər
     });
-    return parseFloat(kassa.toFixed(2));
+    return {
+      kassaBalance: parseFloat(kassa.toFixed(2)),
+      kassaStart: parseFloat(start.toFixed(2)),
+    };
   })();
 
   const thStyle = (center) => ({
@@ -132,6 +139,9 @@ export default function Borclar({ db_data }) {
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>💵 Kassa qalığı</div>
           <div style={{ fontSize: 22, fontWeight: 700, color: kassaBalance >= 0 ? "var(--text)" : "#dc2626" }}>
             {kassaBalance.toFixed(2)} ₼
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 4 }}>
+            Günə başlanan qalıq: <span style={{ fontWeight: 600, color: "var(--text)" }}>{kassaStart.toFixed(2)} ₼</span>
           </div>
         </div>
       </div>
