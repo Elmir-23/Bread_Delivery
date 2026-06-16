@@ -379,25 +379,25 @@ export function useAppData(userEmail) {
   };
 
   // Sürücü təhvili daxil edir (confirmed: false) — kassaya təsir etmir
-  const saveHandover = async (amount, dateOverride) => {
+  // forceConfirmed=true olduqda sahibkar edit edir: confirmed: true saxlanır, kassa yenilənir
+  const saveHandover = async (amount, dateOverride, forceConfirmed = false) => {
     const TODAY = dateOverride || todayStr();
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { toast$("Düzgün məbləğ daxil edin"); return; }
     const handovers = { ...(db_data.handovers || {}) };
-    // Əgər artıq confirmed varsa, sürücü yenidən dəyişə bilməz
     const existing = normalizeHandover(handovers[TODAY]);
-    if (existing && existing.confirmed) {
+    // Sürücü artıq təsdiqlənmiş günü yenidən dəyişə bilməz (yalnız forceConfirmed keçsə icazə var)
+    if (!forceConfirmed && existing && existing.confirmed) {
       toast$("Bu günün təhvili artıq təsdiqlənib");
       return;
     }
-    // Yeni format: {amount, confirmed: false}
-    handovers[TODAY] = { amount: amt, confirmed: false };
-    // Kassa dəyişmir — yalnız kassaBalance-i yenidən hesabla (confirmed olmayan nəzərə alınmır)
+    const confirmed = forceConfirmed ? true : false;
+    handovers[TODAY] = { amount: amt, confirmed };
     const newKassaBalance = _calcKassaFromData(db_data, handovers);
     const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
     if (!ok) return;
-    logAction("handover_save", userEmail, { date: TODAY, amount: amt, confirmed: false });
-    toast$("Təhvil saxlanıldı ✓");
+    logAction("handover_save", userEmail, { date: TODAY, amount: amt, confirmed });
+    toast$(forceConfirmed ? "Təhvil yeniləndi ✓" : "Təhvil saxlanıldı ✓");
   };
 
   // Sahibkar təhvili təsdiqləyir (confirmed: true) — kassadan çıxır
