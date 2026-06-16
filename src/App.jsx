@@ -73,7 +73,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
     saveEditDebt, saveEditCollected, saveExpense, deleteExpense,
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
-    savePrices, changePin, saveHandover, saveKassaAdjustment,
+    savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
   } = useAppData(userEmail);
 
   const TODAY = todayStr();
@@ -144,6 +144,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
               expView={expView} setExpView={setExpView}
               expVals={expVals} setExpVals={setExpVals}
               saveExpense={saveExpense} deleteExpense={deleteExpense}
+              saveHandover={saveHandover}
             />
           )}
           {view === "session" && <SessionScreen db_data={db_data} TODAY={TODAY} selShop={selShop} setView={setView} setCollectedInput={setCollectedInput} openDeliveryEntry={openDeliveryEntry} />}
@@ -177,7 +178,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
                   {ownerTabs.map(([k,l]) => <button key={k} style={c.ownerNavBtn(ownerTab===k)} onClick={() => { setOwnerTab(k); if (k==="edit") setEditView("date-shops"); }}>{l}</button>)}
                 </div>
               </div>
-              {ownerTab === "dashboard" && <Dashboard db_data={db_data} dashPeriod={dashPeriod} setDashPeriod={setDashPeriod} calcStats={calcStats} calcExpenses={calcExpenses} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} saveHandover={saveHandover} saveKassaAdjustment={saveKassaAdjustment} saveExpense={saveExpense} deleteExpense={deleteExpense} />}
+              {ownerTab === "dashboard" && <Dashboard db_data={db_data} dashPeriod={dashPeriod} setDashPeriod={setDashPeriod} calcStats={calcStats} calcExpenses={calcExpenses} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} saveHandover={saveHandover} confirmHandover={confirmHandover} saveKassaAdjustment={saveKassaAdjustment} saveExpense={saveExpense} deleteExpense={deleteExpense} />}
               {ownerTab === "reports" && <Reports db_data={db_data} repPeriod={repPeriod} setRepPeriod={setRepPeriod} calcStats={calcStats} shopKura={shopKura} shopRail={shopRail} toast$={toast$} />}
               {ownerTab === "edit" && <EditSection db_data={db_data} editDate={editDate} setEditDate={setEditDate} editView={editView} setEditView={setEditView} editSelShop={editSelShop} setEditSelShop={setEditSelShop} editSelSess={editSelSess} editEntryVals={editEntryVals} adjEdit={adjEdit} saveEditEntry={saveEditEntry} openEditEntry={openEditEntry} editCollected={editCollected} setEditCollected={setEditCollected} saveEditCollected={saveEditCollected} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} saveHandover={saveHandover} saveKassaAdjustment={saveKassaAdjustment} />}
               {ownerTab === "parametrler" && <Parametrler db_data={db_data} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
