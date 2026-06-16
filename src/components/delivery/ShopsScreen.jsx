@@ -66,7 +66,7 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
             ))}
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <button style={{ ...c.outlineBtn, flex: 1 }} onClick={() => setExpView("list")}>Ləğv et</button>
-              <button style={{ ...c.primaryBtn, flex: 1 }} onClick={saveExpense}>Saxla</button>
+              <button style={{ ...c.primaryBtn, flex: 1 }} onClick={() => saveExpense()}>Saxla</button>
             </div>
           </div>
         ) : (
