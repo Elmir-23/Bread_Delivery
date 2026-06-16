@@ -19,6 +19,9 @@ const confirmedAmount = (raw) => {
 };
 
 export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStats, calcExpenses, saveHandover, confirmHandover }) {
+  const [editingHandover, setEditingHandover] = useState(false);
+  const [editHandoverInput, setEditHandoverInput] = useState("");
+
   const { totGK, totGR, totLK, totLR, totRev, totCollected, ss } = calcStats(dashPeriod);
   const { totExp } = calcExpenses(dashPeriod);
 
@@ -257,19 +260,55 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
             </div>
           </div>
         ) : isConfirmed ? (
-          /* Təsdiqlənib */
+          /* Təsdiqlənib — sahibkar düzəliş edə bilər */
           <div style={{ ...c.block, border: "1px solid #86efac", background: "rgba(134,239,172,0.08)", marginBottom: "1rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 20 }}>✅</span>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--success-text, #16a34a)" }}>
-                  {todayHandover.amount.toFixed(2)} ₼ — Təhvil təsdiqləndi
+            {editingHandover ? (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", marginBottom: 10 }}>Təhvil məbləğini düzəlt</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    type="number" min={0} step={0.01}
+                    value={editHandoverInput}
+                    onChange={e => setEditHandoverInput(e.target.value)}
+                    placeholder={todayHandover.amount.toFixed(2)}
+                    style={{ flex: 1, padding: "9px 12px", fontSize: 16, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+                  />
+                  <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
+                  <button
+                    style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 10, background: "#16a34a", color: "#fff", cursor: "pointer" }}
+                    onClick={() => {
+                      const amt = parseFloat(editHandoverInput);
+                      if (!isNaN(amt) && amt >= 0) {
+                        // confirmed: true saxla, yalnız amount yenilə
+                        saveHandover(editHandoverInput, todayStr(), true);
+                      }
+                      setEditingHandover(false);
+                      setEditHandoverInput("");
+                    }}
+                  >Saxla</button>
+                  <button
+                    style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "none", color: "var(--text)", cursor: "pointer" }}
+                    onClick={() => { setEditingHandover(false); setEditHandoverInput(""); }}
+                  >Ləğv et</button>
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
-                  Kassadan çıxarıldı ✓
+              </>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>✅</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--success-text, #16a34a)" }}>
+                      {todayHandover.amount.toFixed(2)} ₼ — Təhvil təsdiqləndi
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>Kassadan çıxarıldı ✓</div>
+                  </div>
                 </div>
+                <button
+                  style={{ padding: "7px 12px", fontSize: 12, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text)", cursor: "pointer", flexShrink: 0 }}
+                  onClick={() => { setEditHandoverInput(todayHandover.amount.toFixed(2)); setEditingHandover(true); }}
+                >✏️ Düzəlt</button>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           /* Hələ heç nə daxil edilməyib */
