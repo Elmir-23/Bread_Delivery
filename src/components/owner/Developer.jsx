@@ -19,17 +19,42 @@ const ACTION_LABELS = {
   pin_change: "🔑 PIN dəyişdirildi",
   reset: "⚠️ SIFIRLAMA",
   reset_failed: "❌ Sıfırlama uğursuz",
+  restore: "♻️ Bərpa edildi",
   login: "🔓 Giriş",
   logout: "🔒 Çıxış",
 };
 
-export default function Developer({ db_data, archives, resetConfirm, setResetConfirm, resetPinBuf, setResetPinBuf, resetPinErr, setResetPinErr, resetAllData, toast$ }) {
+export default function Developer({ db_data, archives, resetConfirm, setResetConfirm, resetPinBuf, setResetPinBuf, resetPinErr, setResetPinErr, resetAllData, restoreBackup, toast$ }) {
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [expandedLog, setExpandedLog] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupsLoading, setBackupsLoading] = useState(true);
   const [oldestAge, setOldestAge] = useState(null);
+  // Bərpa: hansı backup seçilib + PIN buferi
+  const [restoreTarget, setRestoreTarget] = useState(null); // seçilmiş backup obyekti
+  const [restorePinBuf, setRestorePinBuf] = useState("");
+  const [restorePinErr, setRestorePinErr] = useState("");
+
+  const handleRestorePin = async (k) => {
+    if (k === "clr") { setRestorePinBuf(""); setRestorePinErr(""); return; }
+    if (k === "del") { setRestorePinBuf(p => p.slice(0, -1)); return; }
+    if (restorePinBuf.length >= 4) return;
+    const next = restorePinBuf + k;
+    setRestorePinBuf(next);
+    if (next.length === 4) {
+      if (next === db_data?.pin) {
+        const bk = restoreTarget;
+        const label = bk ? `${bk.workDate} · ${windowLabel(bk.window)}` : "";
+        const ok = await restoreBackup(bk?.data, label);
+        setRestoreTarget(null); setRestorePinBuf(""); setRestorePinErr("");
+        if (!ok) toast$("❌ Bərpa edilmədi");
+      } else {
+        setRestorePinErr("PIN yanlışdır");
+        setTimeout(() => { setRestorePinBuf(""); setRestorePinErr(""); }, 900);
+      }
+    }
+  };
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
@@ -151,9 +176,38 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
                   Snapshot: {fmtBackupTime(bk.snapshotAt)}
                 </div>
               </div>
-              <button onClick={() => downloadBackup(bk)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>⬇ JSON</button>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => downloadBackup(bk)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text)", cursor: "pointer" }}>⬇ JSON</button>
+                <button onClick={() => { setRestoreTarget(bk); setRestorePinBuf(""); setRestorePinErr(""); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", fontSize: 12, fontWeight: 500, border: "1px solid #fca5a5", borderRadius: 8, background: "none", color: "#dc2626", cursor: "pointer" }}>♻️ Bərpa</button>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Bərpa təsdiqi — PIN */}
+      {restoreTarget && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#dc2626", marginBottom: 8, textAlign: "center" }}>♻️ Bərpa et</div>
+            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 6, textAlign: "center" }}>
+              Hazırkı bütün məlumat bu vəziyyət ilə əvəz olunacaq:
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 14, textAlign: "center" }}>
+              {fmtDateShort(restoreTarget.workDate)} · {windowLabel(restoreTarget.window)}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 12, textAlign: "center" }}>Təsdiq üçün PIN daxil edin</div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 12 }}>
+              {[0,1,2,3].map(i => <div key={i} style={c.pinDot(i < restorePinBuf.length)}></div>)}
+            </div>
+            {restorePinErr && <div style={{ color: "#dc2626", fontSize: 12, textAlign: "center", marginBottom: 8 }}>{restorePinErr}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 10 }}>
+              {["1","2","3","4","5","6","7","8","9","clr","0","del"].map(k => (
+                <button key={k} style={{ ...c.pinKey, padding: 10, fontSize: 16 }} onClick={() => handleRestorePin(k)}>{k==="clr"?"CLR":k==="del"?"⌫":k}</button>
+              ))}
+            </div>
+            <button style={{ ...c.outlineBtn, color: "var(--text2)" }} onClick={() => { setRestoreTarget(null); setRestorePinBuf(""); setRestorePinErr(""); }}>Ləğv et</button>
+          </div>
         </div>
       )}
 
