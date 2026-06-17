@@ -4,6 +4,7 @@ import { doc, onSnapshot, setDoc, getDoc, collection, addDoc } from "firebase/fi
 import { todayStr, addDays } from "../utils/dates";
 import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
 import { buildCSV, loadArchives, triggerArchiveIfNeeded, getTodayKey } from "../services/archive";
+import { triggerBackupIfNeeded } from "../services/backup";
 import { logAction } from "../services/logger";
 
 // Köhnə {tarix: rəqəm} formatını {tarix: {amount, confirmed}} formatına çevirir
@@ -145,7 +146,8 @@ export function useAppData(userEmail) {
   // upd: uğurlu olduqda true, uğursuz olduqda false qaytarır.
   // setDoc 4s timeout ilə yarışdırılır — offline-da setDoc cavab vermədiyi üçün
   // bu, internet kəsilməsini ən etibarlı aşkarlayan mexanizmdir.
-  const upd = async (newData) => {
+  // opts.skipBackup=true olduqda backup snapshot götürülmür (məs. reset zamanı).
+  const upd = async (newData, opts = {}) => {
     // Qoruyucu: db_data status string-i ("empty"/"offline") olduqda heç vaxt yazma —
     // əks halda real data zibillənə bilər.
     if (typeof newData !== "object" || newData === null) {
@@ -160,6 +162,11 @@ export function useAppData(userEmail) {
         setDoc(doc(db, "app", "data"), newData),
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
       ]);
+      // Uğurlu yazıdan sonra cari pəncərə üçün backup snapshot götür (üstünə yazır).
+      // Backup uğursuz olsa belə əsas əməliyyat uğurlu sayılır (backup.js daxilində try/catch var).
+      if (!opts.skipBackup) {
+        triggerBackupIfNeeded(newData);
+      }
       return true;
     } catch (e) {
       // setDoc uğursuz/timeout — internet yoxdur
@@ -353,7 +360,7 @@ export function useAppData(userEmail) {
         return;
       }
       await logAction("reset", userEmail, { archiveId: archiveRef.id, rowCount, debtsBefore: db_data.debts || {} });
-      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 });
+      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 }, { skipBackup: true });
       if (!ok) return;
       setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
       const list = await loadArchives(); setArchives(list);
