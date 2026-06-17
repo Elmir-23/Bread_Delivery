@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
+import { loadBackups, windowLabel } from "../../services/backup";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -26,10 +27,30 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [expandedLog, setExpandedLog] = useState(null);
+  const [backups, setBackups] = useState([]);
+  const [backupsLoading, setBackupsLoading] = useState(true);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
+    loadBackups().then(b => { setBackups(b); setBackupsLoading(false); }).catch(e => { console.error(e); setBackupsLoading(false); });
   }, []);
+
+  // Backup-ın tam JSON-unu fayl kimi endirir (copy-paste ilə bərpa üçün)
+  const downloadBackup = (bk) => {
+    const json = JSON.stringify(bk.data, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `bread-backup-${bk.id}.json`;
+    a.click();
+    toast$("JSON yüklənir…");
+  };
+
+  const fmtBackupTime = (ts) => {
+    if (!ts) return "";
+    const d = new Date(ts);
+    return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  };
 
   const downloadArchive = (arc) => {
     const blob = new Blob(["\uFEFF" + arc.csv], { type: "text/csv;charset=utf-8;" });
@@ -88,6 +109,33 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
                   {JSON.stringify(log.details, null, 2)}
                 </pre>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Backuplar (JSON snapshot) */}
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>💾 Backuplar (JSON)</div>
+      <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 12 }}>
+        Hər sessiyada (səhər / günorta / axşam) avtomatik götürülür. Bərpa üçün JSON-u endirib Firebase Console-da <strong>app/data</strong> sənədinə yapışdırın.
+      </div>
+      {backupsLoading ? (
+        <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "1.5rem", marginBottom: "1.5rem" }}>Yüklənir…</div>
+      ) : backups.length === 0 ? (
+        <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "1.5rem", marginBottom: "1.5rem" }}>Hələ backup yoxdur.</div>
+      ) : (
+        <div style={{ ...c.listCard, marginBottom: "1.5rem", maxHeight: 360, overflowY: "auto" }}>
+          {backups.map((bk, i) => (
+            <div key={bk.id} style={{ ...c.listRow(i === backups.length - 1), gap: 8 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {fmtDateShort(bk.workDate)} · {windowLabel(bk.window)}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>
+                  Snapshot: {fmtBackupTime(bk.snapshotAt)}
+                </div>
+              </div>
+              <button onClick={() => downloadBackup(bk)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>⬇ JSON</button>
             </div>
           ))}
         </div>
