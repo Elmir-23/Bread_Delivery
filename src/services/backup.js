@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, getDocs, doc, setDoc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, query, orderBy, limit } from "firebase/firestore";
 
 // ── Backup pəncərələri (bitişik, boşluqsuz) ──
 // Səhər:   06:00 – 11:59
@@ -64,14 +64,33 @@ export async function triggerBackupIfNeeded(data) {
   }
 }
 
-// Bütün backup-ları ən yenidən köhnəyə doğru qaytarır
-export async function loadBackups() {
+// Backup-ları ən yenidən köhnəyə doğru qaytarır.
+// Panel yalnız son N backup-ı göstərir (heç nə SİLİNMİR — köhnələr Firestore-da qalır,
+// Firebase Console → backups koleksiyasından əl ilə əlçatandır).
+export async function loadBackups(max = 90) {
   try {
-    const q = query(collection(db, "backups"), orderBy("snapshotAt", "desc"));
+    const q = query(collection(db, "backups"), orderBy("snapshotAt", "desc"), limit(max));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (e) {
     console.error("loadBackups xətası:", e);
     return [];
+  }
+}
+
+// Ən köhnə backup-ın neçə gün əvvələ aid olduğunu qaytarır (xatırlatma üçün).
+// Heç nə silmir — yalnız oxuyur. Backup yoxdursa null.
+export async function getOldestBackupAgeDays() {
+  try {
+    const q = query(collection(db, "backups"), orderBy("snapshotAt", "asc"), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const oldest = snap.docs[0].data();
+    if (!oldest.snapshotAt) return null;
+    const diffMs = Date.now() - oldest.snapshotAt;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  } catch (e) {
+    console.error("getOldestBackupAgeDays xətası:", e);
+    return null;
   }
 }
