@@ -71,7 +71,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
     openDeliveryEntry, adjDelivery, saveDeliveryEntry,
     saveDebtCollection, openEditEntry, saveEditEntry,
     saveEditDebt, saveEditCollected, saveExpense, deleteExpense,
-    resetAllData, calcStats, calcExpenses,
+    resetAllData, calcStats, calcExpenses, restoreBackup,
     saveShops, addShop, removeShop, confirmRemoveShop,
     savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
   } = useAppData(userEmail);
@@ -194,7 +194,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
               {ownerTab === "reports" && <Reports db_data={db_data} repPeriod={repPeriod} setRepPeriod={setRepPeriod} calcStats={calcStats} shopKura={shopKura} shopRail={shopRail} toast$={toast$} />}
               {ownerTab === "edit" && <EditSection db_data={db_data} editDate={editDate} setEditDate={setEditDate} editView={editView} setEditView={setEditView} editSelShop={editSelShop} setEditSelShop={setEditSelShop} editSelSess={editSelSess} editEntryVals={editEntryVals} adjEdit={adjEdit} saveEditEntry={saveEditEntry} openEditEntry={openEditEntry} editCollected={editCollected} setEditCollected={setEditCollected} saveEditCollected={saveEditCollected} editDebtShop={editDebtShop} setEditDebtShop={setEditDebtShop} editDebtVal={editDebtVal} setEditDebtVal={setEditDebtVal} saveEditDebt={saveEditDebt} saveHandover={saveHandover} saveKassaAdjustment={saveKassaAdjustment} />}
               {ownerTab === "parametrler" && <Parametrler db_data={db_data} settPrices={settPrices} setSettPrices={setSettPrices} savePrices={savePrices} pinOld={pinOld} setPinOld={setPinOld} pinNew={pinNew} setPinNew={setPinNew} changePin={changePin} shopEdits={shopEdits} setShopEdits={setShopEdits} newShopName={newShopName} setNewShopName={setNewShopName} addShop={addShop} removeShop={removeShop} saveShops={saveShops} />}
-              {ownerTab === "developer" && isDeveloper && <Developer db_data={db_data} archives={archives} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} toast$={toast$} />}
+              {ownerTab === "developer" && isDeveloper && <Developer db_data={db_data} archives={archives} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetPinBuf={resetPinBuf} setResetPinBuf={setResetPinBuf} resetPinErr={resetPinErr} setResetPinErr={setResetPinErr} resetAllData={resetAllData} restoreBackup={restoreBackup} toast$={toast$} />}
               <div style={{ padding: "0 1rem 1.5rem" }}>
                 <button style={{ ...c.outlineBtn, color: "#dc2626", borderColor: "#fca5a5" }} onClick={onSignOut}>Çıxış</button>
               </div>
