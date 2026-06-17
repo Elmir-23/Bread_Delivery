@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
-import { loadBackups, windowLabel } from "../../services/backup";
+import { loadBackups, windowLabel, getOldestBackupAgeDays } from "../../services/backup";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -29,10 +29,12 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [expandedLog, setExpandedLog] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupsLoading, setBackupsLoading] = useState(true);
+  const [oldestAge, setOldestAge] = useState(null);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
     loadBackups().then(b => { setBackups(b); setBackupsLoading(false); }).catch(e => { console.error(e); setBackupsLoading(false); });
+    getOldestBackupAgeDays().then(setOldestAge).catch(e => console.error(e));
   }, []);
 
   // Backup-ın tam JSON-unu fayl kimi endirir (copy-paste ilə bərpa üçün)
@@ -116,6 +118,20 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
 
       {/* Backuplar (JSON snapshot) */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>💾 Backuplar (JSON)</div>
+
+      {oldestAge !== null && oldestAge >= 60 && (
+        <div style={{ ...c.block, border: "1px solid #fbbf24", background: "rgba(251,191,36,0.08)", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 4 }}>
+            🧹 Backupları təmizləmək vaxtıdır
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text2)" }}>
+            Ən köhnə backup {oldestAge} gün əvvələ aiddir. Firestore yeri şişməsin deyə,
+            Firebase Console → <strong>backups</strong> koleksiyasından köhnə sənədləri əl ilə silə bilərsiniz.
+            (Heç nə avtomatik silinmir.)
+          </div>
+        </div>
+      )}
+
       <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 12 }}>
         Hər sessiyada (səhər / günorta / axşam) avtomatik götürülür. Bərpa üçün JSON-u endirib Firebase Console-da <strong>app/data</strong> sənədinə yapışdırın.
       </div>
