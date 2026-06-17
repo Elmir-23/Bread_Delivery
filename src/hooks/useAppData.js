@@ -546,6 +546,22 @@ export function useAppData(userEmail) {
     toast$("Kassa yeniləndi ✓");
   };
 
+  // Backup-dan bərpa: seçilmiş snapshot-ın data-sını app/data-ya yazır.
+  // backupData — backup sənədinin `data` sahəsi (tam app/data surəti).
+  // skipBackup: true — bərpanın özü yeni backup yaratmasın (köhnə vəziyyəti snapshot etməsin).
+  const restoreBackup = async (backupData, backupLabel) => {
+    if (!backupData || typeof backupData !== "object") {
+      toast$("❌ Backup datası yanlışdır");
+      return false;
+    }
+    const before = db_data;
+    const ok = await upd(backupData, { skipBackup: true });
+    if (!ok) return false;
+    logAction("restore", userEmail, { backup: backupLabel || "naməlum", restoredAt: Date.now() });
+    toast$("✓ Bərpa edildi");
+    return true;
+  };
+
   return {
     db_data, loading, tab, setTab, view, setView,
     selShop, setSelShop, selSess, setSelSess,
@@ -576,6 +592,7 @@ export function useAppData(userEmail) {
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
     savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
+    restoreBackup,
     // normalizeHandover köməkçisi — Dashboard-da istifadə üçün export
     normalizeHandover,
   };
