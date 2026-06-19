@@ -360,7 +360,7 @@ export function useAppData(userEmail) {
         return;
       }
       await logAction("reset", userEmail, { archiveId: archiveRef.id, rowCount, debtsBefore: db_data.debts || {} });
-      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, kassaBalance: 0, kassaAdjustment: 0 }, { skipBackup: true });
+      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, sweets: {}, kassaBalance: 0, kassaAdjustment: 0 }, { skipBackup: true });
       if (!ok) return;
       setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
       const list = await loadArchives(); setArchives(list);
@@ -380,15 +380,30 @@ export function useAppData(userEmail) {
       ...Object.keys(data.debtPayments || {}),
       ...Object.keys(data.expenses || {}),
       ...Object.keys(handovers),
+      ...Object.keys(data.sweets || {}),
     ])].sort();
     let kassa = data.kassaAdjustment || 0;
     allDates.forEach(date => {
       const yigilan = Object.values(data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const sweet = data.sweets?.[date] || 0;
       const exp = (data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
       const tehvil = confirmedAmount(handovers[date]);
-      kassa += yigilan - exp - tehvil;
+      kassa += yigilan + sweet - exp - tehvil;
     });
     return parseFloat(kassa.toFixed(2));
+  };
+
+  // Şirniyyat gəliri saxla (sürücü + sahibkar edit üçün)
+  const saveSweet = async (amount, dateOverride) => {
+    const TODAY = dateOverride || todayStr();
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt < 0) { toast$("Düzgün məbləğ daxil edin"); return; }
+    const sweets = { ...(db_data.sweets || {}), [TODAY]: amt };
+    const newKassaBalance = _calcKassaFromData({ ...db_data, sweets });
+    const ok = await upd({ ...db_data, sweets, kassaBalance: newKassaBalance });
+    if (!ok) return;
+    logAction("sweet_save", userEmail, { date: TODAY, amount: amt });
+    toast$("Şirniyyat gəliri saxlanıldı ✓");
   };
 
   // Sürücü təhvili daxil edir (confirmed: false) — kassaya təsir etmir
@@ -592,7 +607,7 @@ export function useAppData(userEmail) {
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
     savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
-    restoreBackup,
+    saveSweet, restoreBackup,
     // normalizeHandover köməkçisi — Dashboard-da istifadə üçün export
     normalizeHandover,
   };
