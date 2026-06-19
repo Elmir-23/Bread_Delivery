@@ -3,9 +3,11 @@ import { c } from "../../styles/styles";
 import { fmtDate } from "../../utils/dates";
 import { SESS, EXP_CATS } from "../../constants";
 
-export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setExpView, expView, expVals, setExpVals, saveExpense, deleteExpense, saveHandover }) {
+export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setExpView, expView, expVals, setExpVals, saveExpense, deleteExpense, saveHandover, saveSweet }) {
   const todayExps = db_data.expenses?.[TODAY] || [];
-  const [handoverInput, setHandoverInput] = useState("");
+  const [sweetInput, setSweetInput] = useState("");
+
+  const todaySweet = db_data.sweets?.[TODAY] || 0;
 
   // Bugünkü təhvilin mövcud vəziyyəti
   const rawHandover = db_data.handovers?.[TODAY];
@@ -16,7 +18,7 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
     : null;
   const isConfirmed = todayHandover?.confirmed === true;
 
-  // Xərc formu açılanda mövcud məbləğləri doldur
+  // Düzəliş formu açılanda mövcud məbləğləri doldur
   const openEdit = () => {
     const prefilled = { benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" };
     todayExps.forEach(e => {
@@ -25,13 +27,6 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
     });
     setExpVals(prefilled);
     setExpView("add");
-  };
-
-  const handleSaveHandover = () => {
-    const val = parseFloat(handoverInput);
-    if (isNaN(val) || val < 0) return;
-    saveHandover(handoverInput);
-    setHandoverInput("");
   };
 
   return (
@@ -51,9 +46,34 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
         })}
       </div>
 
+      {/* ── Şirniyyat gəliri ── */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>🍬 Şirniyyat gəliri</div>
+        <div style={c.block}>
+          {todaySweet > 0 && (
+            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 8 }}>
+              Daxil edilib: <span style={{ fontWeight: 700, color: "var(--text)", fontSize: 16 }}>{todaySweet.toFixed(2)} ₼</span>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="number" min={0} step={0.01}
+              value={sweetInput}
+              onChange={e => setSweetInput(e.target.value)}
+              placeholder={todaySweet > 0 ? todaySweet.toFixed(2) : "0.00"}
+              style={{ flex: 1, padding: "9px 12px", fontSize: 16, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+            />
+            <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
+            <button
+              style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
+              onClick={() => { saveSweet(sweetInput); setSweetInput(""); }}
+            >{todaySweet > 0 ? "Yenilə" : "Saxla"}</button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Xərclər ── */}
       <div style={{ marginTop: "1.5rem" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>💸 Xərclər</div>
 
         {expView === "add" ? (
           <div style={c.block}>
@@ -125,75 +145,6 @@ export default function ShopsScreen({ db_data, TODAY, setSelShop, setView, setEx
               {todayExps.length > 0 ? "✏️ Xərcləri düzəlt" : "+ Xərc əlavə et"}
             </button>
           </>
-        )}
-      </div>
-
-      {/* ── Sahibkara Təhvil ── */}
-      <div style={{ marginTop: "1.5rem" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>💵 Sahibkara Təhvil</div>
-
-        {isConfirmed ? (
-          /* Təsdiqlənib — sürücü artıq dəyişə bilməz */
-          <div style={{ ...c.block, borderColor: "var(--success, #22c55e)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 20 }}>✅</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--success-text, #16a34a)" }}>
-                  {todayHandover.amount.toFixed(2)} ₼ — Sahibkar tərəfindən təsdiqlənib
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 2 }}>Bu günün təhvili bağlandı</div>
-              </div>
-            </div>
-          </div>
-        ) : todayHandover ? (
-          /* Daxil edilib, sahibkar gözlənilir */
-          <div style={c.block}>
-            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 10 }}>
-              Daxil etdiniz:{" "}
-              <span style={{ fontWeight: 700, color: "var(--text)", fontSize: 16 }}>{todayHandover.amount.toFixed(2)} ₼</span>
-              <span style={{ marginLeft: 8, fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>⏳ Sahibkar təsdiqini gözləyir</span>
-            </div>
-            {/* Məbləği dəyişdirmə imkanı — hələ təsdiqlənməyib */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                type="number" min={0} step={0.01}
-                value={handoverInput}
-                onChange={e => setHandoverInput(e.target.value)}
-                placeholder={todayHandover.amount.toFixed(2)}
-                style={{ flex: 1, padding: "9px 12px", fontSize: 16, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-              />
-              <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
-              <button
-                style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer", whiteSpace: "nowrap" }}
-                onClick={handleSaveHandover}
-              >
-                Yenilə
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Hələ daxil edilməyib */
-          <div style={c.block}>
-            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 10 }}>
-              Sahibkara verdiyiniz məbləği daxil edin
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                type="number" min={0} step={0.01}
-                value={handoverInput}
-                onChange={e => setHandoverInput(e.target.value)}
-                placeholder="0.00"
-                style={{ flex: 1, padding: "9px 12px", fontSize: 16, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
-              />
-              <span style={{ fontSize: 14, color: "var(--text2)" }}>₼</span>
-              <button
-                style={{ padding: "9px 14px", fontSize: 13, fontWeight: 600, border: "none", borderRadius: 10, background: "var(--text)", color: "var(--bg)", cursor: "pointer" }}
-                onClick={handleSaveHandover}
-              >
-                Saxla
-              </button>
-            </div>
-          </div>
         )}
       </div>
     </div>
