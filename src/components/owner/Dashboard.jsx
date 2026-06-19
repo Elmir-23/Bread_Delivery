@@ -55,6 +55,11 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
     return parseFloat(val.toFixed(2));
   })();
 
+  // Şirniyyat gəliri — dövr ərzində
+  const totSweet = Object.entries(db_data.sweets || {})
+    .filter(([d]) => d >= s && d <= t)
+    .reduce((a, [, v]) => a + (v || 0), 0);
+
   // Mağaza üzrə gəlir (dövr filtrli)
   const revs = db_data.shops
     .map((shop, i) => ({ name: shop.name, rev: ss[i]?.rev || 0 }))
@@ -70,14 +75,16 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
       ...Object.keys(db_data.debtPayments || {}),
       ...Object.keys(db_data.expenses || {}),
       ...Object.keys(db_data.handovers || {}),
+      ...Object.keys(db_data.sweets || {}),
     ])].sort();
     let kassa = db_data.kassaAdjustment || 0;
     let start = db_data.kassaAdjustment || 0;
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const sweet = db_data.sweets?.[date] || 0;
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
       const tehvil = confirmedAmount(db_data.handovers?.[date]);
-      const delta = yigilan - exp - tehvil;
+      const delta = yigilan + sweet - exp - tehvil;
       kassa += delta;
       if (date < t) start += delta;
     });
@@ -114,10 +121,15 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
       {/* Yığılan · Xərclər · Qaytarılan · Təhvil */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
         <div style={c.metricGreen}>
-          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul</div>
+          <div style={{ fontSize: 11, color: "var(--collected-text)", marginBottom: 3, fontWeight: 600 }}>Yığılan pul (cəmi)</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: "var(--collected-text)" }}>
-            {totCollected > 0 ? totCollected.toFixed(2) + " ₼" : "—"}
+            {(totCollected + totSweet) > 0 ? (totCollected + totSweet).toFixed(2) + " ₼" : "—"}
           </div>
+          {(totCollected > 0 || totSweet > 0) && (
+            <div style={{ fontSize: 11, color: "var(--collected-text)", marginTop: 4, opacity: 0.85 }}>
+              🍞 {totCollected.toFixed(2)} ₼ · 🍬 {totSweet.toFixed(2)} ₼
+            </div>
+          )}
         </div>
         <div style={{ ...c.metric, border: totExp > 0 ? "1px solid #fca5a5" : "1px solid var(--border)" }}>
           <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 3 }}>Xərclər</div>
