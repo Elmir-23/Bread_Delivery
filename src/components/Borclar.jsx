@@ -91,14 +91,16 @@ export default function Borclar({ db_data }) {
       ...Object.keys(db_data.debtPayments || {}),
       ...Object.keys(db_data.expenses || {}),
       ...Object.keys(db_data.handovers || {}),
+      ...Object.keys(db_data.sweets || {}),
     ])];
     let kassa = db_data.kassaAdjustment || 0;
     let start = db_data.kassaAdjustment || 0;
     allDates.forEach(date => {
       const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+      const sweet = db_data.sweets?.[date] || 0;
       const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
       const tehvil = confirmedAmount(db_data.handovers?.[date]);
-      const delta = yigilan - exp - tehvil;
+      const delta = yigilan + sweet - exp - tehvil;
       kassa += delta;
       if (date < TODAY) start += delta; // yalnız bugündən əvvəlki tarixlər
     });
