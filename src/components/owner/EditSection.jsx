@@ -4,9 +4,10 @@ import { todayStr, addDays, fmtDateShort } from "../../utils/dates";
 import { SESS, EXP_CATS } from "../../constants";
 import EntryForm from "../delivery/EntryForm";
 
-export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, saveHandover, saveExpense, deleteExpense }) {
+export default function EditSection({ db_data, editDate, setEditDate, editView, setEditView, editSelShop, setEditSelShop, editSelSess, editEntryVals, adjEdit, saveEditEntry, openEditEntry, editCollected, setEditCollected, saveEditCollected, saveHandover, saveExpense, deleteExpense, saveSweet }) {
   const isEditToday = editDate === todayStr();
   const [handoverEditVal, setHandoverEditVal] = useState("");
+  const [sweetEditVal, setSweetEditVal] = useState("");
   const [showExpAdd, setShowExpAdd] = useState(false);
   const [editExpVals, setEditExpVals] = useState({ benzin: "", moyka: "", baxim: "", maas: "", diger: "", digerDesc: "" });
 
@@ -28,6 +29,7 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
     });
     const dayCollected = Object.values(db_data.debtPayments?.[editDate] || {}).reduce((a, b) => a + b, 0);
     const dayExp = (db_data.expenses?.[editDate] || []).reduce((a, e) => a + e.amount, 0);
+    const daySweet = db_data.sweets?.[editDate] || 0;
     const existingHandover = db_data.handovers?.[editDate] || 0;
 
     return (
@@ -56,9 +58,29 @@ export default function EditSection({ db_data, editDate, setEditDate, editView, 
             <div style={{ fontSize: 16, fontWeight: 700, color: dayExp > 0 ? "#dc2626" : "var(--text)" }}>{dayExp > 0 ? "-" + dayExp.toFixed(2) + " ₼" : "—"}</div>
           </div>
           <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Şirniyyat gəliri</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: daySweet > 0 ? "var(--success-text)" : "var(--text)" }}>{daySweet > 0 ? daySweet.toFixed(2) + " ₼" : "—"}</div>
+          </div>
+          <div style={{ background: "var(--bg2)", borderRadius: 12, padding: "10px 12px", border: "1px solid var(--border)" }}>
             <div style={{ fontSize: 10, color: "var(--text2)", marginBottom: 3 }}>Təhvil verilən</div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{existingHandover > 0 ? existingHandover.toFixed(2) + " ₼" : "—"}</div>
           </div>
+        </div>
+
+        {/* Şirniyyat gəliri düzəlt */}
+        <div style={{ ...c.block, marginBottom: 10 }}>
+          <div style={c.blockTitle}>🍬 Şirniyyat gəlirini düzəlt</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <input
+              type="number" min={0} step={0.01}
+              value={sweetEditVal}
+              onChange={e => setSweetEditVal(e.target.value)}
+              placeholder={daySweet > 0 ? daySweet.toFixed(2) : "0.00"}
+              style={{ flex: 1, padding: "10px 12px", fontSize: 18, fontWeight: 600, border: "1px solid var(--border2)", borderRadius: 10, background: "var(--bg)", color: "var(--text)", textAlign: "right" }}
+            />
+            <span style={{ fontSize: 16, color: "var(--text2)" }}>₼</span>
+          </div>
+          <button style={{ ...c.primaryBtn, marginTop: 10 }} onClick={() => { saveSweet(sweetEditVal, editDate); setSweetEditVal(""); }}>Saxla</button>
         </div>
 
         {/* Təhvil verilən məbləği düzəlt */}
