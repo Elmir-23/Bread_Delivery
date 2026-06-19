@@ -31,10 +31,15 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [backups, setBackups] = useState([]);
   const [backupsLoading, setBackupsLoading] = useState(true);
   const [oldestAge, setOldestAge] = useState(null);
-  // Bərpa: hansı backup seçilib + PIN buferi
-  const [restoreTarget, setRestoreTarget] = useState(null); // seçilmiş backup obyekti
+  const [restoreTarget, setRestoreTarget] = useState(null);
   const [restorePinBuf, setRestorePinBuf] = useState("");
   const [restorePinErr, setRestorePinErr] = useState("");
+
+  useEffect(() => {
+    loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
+    loadBackups().then(b => { setBackups(b); setBackupsLoading(false); }).catch(e => { console.error(e); setBackupsLoading(false); });
+    getOldestBackupAgeDays().then(setOldestAge).catch(e => console.error(e));
+  }, []);
 
   const handleRestorePin = async (k) => {
     if (k === "clr") { setRestorePinBuf(""); setRestorePinErr(""); return; }
@@ -55,12 +60,6 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       }
     }
   };
-
-  useEffect(() => {
-    loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
-    loadBackups().then(b => { setBackups(b); setBackupsLoading(false); }).catch(e => { console.error(e); setBackupsLoading(false); });
-    getOldestBackupAgeDays().then(setOldestAge).catch(e => console.error(e));
-  }, []);
 
   // Backup-ın tam JSON-unu fayl kimi endirir (copy-paste ilə bərpa üçün)
   const downloadBackup = (bk) => {
@@ -185,16 +184,13 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
         </div>
       )}
 
-      {/* Bərpa təsdiqi — PIN */}
       {restoreTarget && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
           <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: "#dc2626", marginBottom: 8, textAlign: "center" }}>♻️ Bərpa et</div>
-            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 6, textAlign: "center" }}>
-              Hazırkı bütün məlumat bu vəziyyət ilə əvəz olunacaq:
-            </div>
+            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 6, textAlign: "center" }}>Hazırkı bütün məlumat bu vəziyyət ilə əvəz olunacaq:</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 14, textAlign: "center" }}>
-              {fmtDateShort(restoreTarget.workDate)} · {windowLabel(restoreTarget.window)}
+              {restoreTarget.workDate} · {windowLabel(restoreTarget.window)}
             </div>
             <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 12, textAlign: "center" }}>Təsdiq üçün PIN daxil edin</div>
             <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 12 }}>
