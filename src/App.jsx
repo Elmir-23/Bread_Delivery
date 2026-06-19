@@ -74,7 +74,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
     savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
-    restoreBackup,
+    saveSweet, restoreBackup,
   } = useAppData(userEmail);
 
   const TODAY = todayStr();
@@ -157,7 +157,7 @@ function AppInner({ isOwner, isDeveloper, userEmail, onSignOut }) {
               expView={expView} setExpView={setExpView}
               expVals={expVals} setExpVals={setExpVals}
               saveExpense={saveExpense} deleteExpense={deleteExpense}
-              saveHandover={saveHandover}
+              saveHandover={saveHandover} saveSweet={saveSweet}
             />
           )}
           {view === "session" && <SessionScreen db_data={db_data} TODAY={TODAY} selShop={selShop} setView={setView} setCollectedInput={setCollectedInput} openDeliveryEntry={openDeliveryEntry} />}
