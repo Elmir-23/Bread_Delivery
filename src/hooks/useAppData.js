@@ -61,6 +61,7 @@ export function useAppData(userEmail) {
   const [confirmDeleteShop, setConfirmDeleteShop] = useState(null);
   const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
   const isOnlineRef = useRef(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const savingDebtRef = useRef(false);
   const _setIsOnline = (v) => { isOnlineRef.current = v; setIsOnline(v); };
 
   useEffect(() => {
@@ -232,21 +233,28 @@ export function useAppData(userEmail) {
   };
 
   const saveDebtCollection = async () => {
+    if (savingDebtRef.current) return; // cüt-çağırış qorunması
     const collected = parseFloat(collectedInput) || 0;
     if (collected <= 0) { toast$("Məbləğ daxil edin"); return; }
-    const TODAY = todayStr();
-    const debts = { ...(db_data.debts || {}) };
-    const before = debts[selShop] || 0;
-    debts[selShop] = before - collected;
-    const debtPayments = { ...(db_data.debtPayments || {}) };
-    if (!debtPayments[TODAY]) debtPayments[TODAY] = {};
-    debtPayments[TODAY][selShop] = (debtPayments[TODAY][selShop] || 0) + collected;
-    const ok = await upd({ ...db_data, debts, debtPayments });
-    if (!ok) return;
-    logAction("debt_collect", userEmail, { shop: db_data.shops[selShop]?.name, collected, debtBefore: before, debtAfter: debts[selShop] });
-    setCollectedInput("");
-    toast$("Borc yeniləndi ✓");
-    setTimeout(() => setView("session"), 300);
+    savingDebtRef.current = true;
+    try {
+      const TODAY = todayStr();
+      const debts = { ...(db_data.debts || {}) };
+      const before = debts[selShop] || 0;
+      debts[selShop] = before - collected;
+      // nested obyekti də kopyala — db_data-nı yerində mutate etmə
+      const dayPayments = { ...(db_data.debtPayments?.[TODAY] || {}) };
+      dayPayments[selShop] = (dayPayments[selShop] || 0) + collected;
+      const debtPayments = { ...(db_data.debtPayments || {}), [TODAY]: dayPayments };
+      const ok = await upd({ ...db_data, debts, debtPayments });
+      if (!ok) return;
+      logAction("debt_collect", userEmail, { shop: db_data.shops[selShop]?.name, collected, debtBefore: before, debtAfter: debts[selShop] });
+      setCollectedInput("");
+      toast$("Borc yeniləndi ✓");
+      setTimeout(() => setView("session"), 300);
+    } finally {
+      savingDebtRef.current = false;
+    }
   };
 
   const openEditEntry = (shopIdx, sessId) => {
@@ -333,9 +341,10 @@ export function useAppData(userEmail) {
     const diff = amount - oldAmount;
     const debts = { ...(db_data.debts || {}) };
     debts[shopIdx] = (debts[shopIdx] || 0) - diff;
-    const debtPayments = { ...(db_data.debtPayments || {}) };
-    if (!debtPayments[date]) debtPayments[date] = {};
-    if (amount === 0) { delete debtPayments[date][shopIdx]; } else { debtPayments[date][shopIdx] = amount; }
+    // nested obyekti də kopyala — db_data-nı yerində mutate etmə
+    const dayPayments = { ...(db_data.debtPayments?.[date] || {}) };
+    if (amount === 0) { delete dayPayments[shopIdx]; } else { dayPayments[shopIdx] = amount; }
+    const debtPayments = { ...(db_data.debtPayments || {}), [date]: dayPayments };
     const ok = await upd({ ...db_data, debts, debtPayments });
     if (!ok) return;
     logAction("collected_edit", userEmail, { date, shop: db_data.shops[shopIdx]?.name, before: oldAmount, after: amount });
