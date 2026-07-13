@@ -5,11 +5,19 @@ import { SESS } from "../constants";
 
 export default function ChorekHesabat({ db_data }) {
   const [period, setPeriod] = useState("day");
+  const [rangeStart, setRangeStart] = useState(addDays(todayStr(), -6));
+  const [rangeEnd, setRangeEnd] = useState(todayStr());
 
-  const t = todayStr();
-  let s = t;
-  if (period === "week") s = addDays(t, -6);
-  if (period === "month") s = addDays(t, -29);
+  let s, e;
+  if (period === "yesterday") {
+    s = e = addDays(todayStr(), -1);
+  } else if (period === "range") {
+    s = rangeStart <= rangeEnd ? rangeStart : rangeEnd;
+    e = rangeStart <= rangeEnd ? rangeEnd : rangeStart;
+  } else {
+    s = e = todayStr();
+  }
+  const t = e;
 
   const shopRows = [];
   let grandGK = 0, grandGD = 0, grandLK = 0, grandLD = 0;
@@ -55,11 +63,40 @@ export default function ChorekHesabat({ db_data }) {
   return (
     <div style={{ padding: "1rem 0" }}>
       <div style={{ padding: "0 1rem 10px", display: "flex", gap: 6 }}>
-        {[["day","Bu gün"],["week","7 gün"],["month","30 gün"]].map(([p,l]) => (
+        {[["day","Bu gün"],["yesterday","Dünən"],["range","Tarix aralığı"]].map(([p,l]) => (
           <button key={p} style={c.periodBtn(period===p)} onClick={() => setPeriod(p)}>{l}</button>
         ))}
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 10, padding: "0 1rem" }}>{fmtDate(t)}</div>
+
+      {period === "range" && (
+        <div style={{ padding: "0 1rem 10px", display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="date"
+            value={rangeStart}
+            max={todayStr()}
+            onChange={ev => setRangeStart(ev.target.value)}
+            style={{
+              flex: 1, padding: "7px 8px", fontSize: 13, borderRadius: 8,
+              border: "1px solid var(--border2)", background: "var(--bg)", color: "var(--text)"
+            }}
+          />
+          <span style={{ fontSize: 12, color: "var(--text2)" }}>—</span>
+          <input
+            type="date"
+            value={rangeEnd}
+            max={todayStr()}
+            onChange={ev => setRangeEnd(ev.target.value)}
+            style={{
+              flex: 1, padding: "7px 8px", fontSize: 13, borderRadius: 8,
+              border: "1px solid var(--border2)", background: "var(--bg)", color: "var(--text)"
+            }}
+          />
+        </div>
+      )}
+
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text2)", marginBottom: 10, padding: "0 1rem" }}>
+        {s === t ? fmtDate(t) : `${fmtDate(s)} — ${fmtDate(t)}`}
+      </div>
 
       {/* Yuxarıda xülasə kartları */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 1rem", marginBottom: "1rem" }}>
