@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS } from "../constants";
 
@@ -156,6 +156,66 @@ export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
   });
 
   return { ...data, ...pruned };
+}
+
+// BİR DƏFƏLİK təmizləmə: köhnə (bu il-fayl sisteminə keçməzdən əvvəlki) fərdi
+// arxiv sənədlərini aradan qaldırır.
+// - `windowed:true` işarəli sənədlər (düzgün pəncərəli, TƏKRARSIZ data) → year_YYYY
+//   faylına köçürülür, yalnız köçürmə uğurlu olarsa silinir.
+// - İşarəsiz köhnə sənədlər (əsl tam-tarixçə dump-lar) → köçürülmür, birbaşa silinir,
+//   çünki məzmunları artıq ya canlı data-da, ya da köçürülmüş windowed sənəddə var.
+// - `resetBy` (sıfırlama-öncəsi arxiv) və `isMain` (köhnə consolidasiya qalığı) sənədlər,
+//   həmçinin `year_*` və `meta` TOXUNULMUR.
+// Təhlükəsiz təkrar-işlədilə bilər — təmizləyəcək heç nə qalmayıbsa, sadəcə heç nə etmir.
+// Qaytarır: silinən sənəd sayı.
+export async function cleanupLegacyArchiveDocs() {
+  const snap = await getDocs(collection(db, "archives"));
+  const candidates = snap.docs.filter(d => {
+    const data = d.data();
+    if (d.id === META_DOC_ID) return false;
+    if (d.id.startsWith("year_")) return false;
+    if (data.isMain) return false;
+    if (data.resetBy) return false;
+    return true;
+  });
+  if (candidates.length === 0) return 0;
+
+  const safeToDelete = [];
+  for (const d of candidates) {
+    const data = d.data();
+    const isWindowed = data.windowed && data.csv && data.rowCount;
+    if (!isWindowed) {
+      safeToDelete.push(d.ref); // pəncərəsiz dump — məzmunu başqa yerdə mövcuddur
+      continue;
+    }
+    const year = (data.endDate || data.archivedOn || todayStr()).slice(0, 4);
+    const yearRef = doc(db, "archives", yearDocId(year));
+    try {
+      const s = await getDoc(yearRef);
+      const existing = s.exists() ? s.data() : null;
+      const newLines = data.csv.split("\n").slice(1).filter(Boolean);
+      const csv = (existing?.csv || CSV_HEADER) + newLines.join("\n") + (newLines.length ? "\n" : "");
+      const rowCount = (existing?.rowCount || 0) + data.rowCount;
+      const startDate = existing?.startDate && existing.startDate < data.startDate ? existing.startDate : data.startDate;
+      const endDate = existing?.endDate && existing.endDate > data.endDate ? existing.endDate : data.endDate;
+      await setDoc(yearRef, { archivedOn: endDate, year, csv, rowCount, startDate, endDate, updatedAt: Date.now() });
+      safeToDelete.push(d.ref); // yalnız uğurlu köçürmədən SONRA silinməyə əlavə olunur
+    } catch (e) {
+      console.error(`cleanupLegacyArchiveDocs (${year}) xətası:`, e);
+      // köçürülə bilmədi — bu sənəd TOXUNULMAZ qalır
+    }
+  }
+
+  let deleted = 0;
+  for (const ref of safeToDelete) {
+    try {
+      await deleteDoc(ref);
+      deleted++;
+    } catch (e) {
+      console.error("Arxiv sənədi silinmədi:", e);
+    }
+  }
+  return deleted;
 }
 
 export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
