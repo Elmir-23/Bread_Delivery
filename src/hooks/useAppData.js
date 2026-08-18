@@ -3,7 +3,7 @@ import { db } from "../firebase";
 import { doc, onSnapshot, setDoc, getDoc, collection, addDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
-import { buildCSV, loadArchives, archiveAndPruneIfNeeded, consolidateOldArchivesIfNeeded, getTodayKey } from "../services/archive";
+import { buildCSV, loadArchives, archiveAndPruneIfNeeded, getTodayKey } from "../services/archive";
 import { triggerBackupIfNeeded } from "../services/backup";
 import { logAction } from "../services/logger";
 
@@ -191,7 +191,6 @@ export function useAppData(userEmail) {
       archiveAndPruneIfNeeded(db_data)
         .then(pruned => { if (pruned) return upd(pruned); })
         .catch(e => console.error(e))
-        .then(() => consolidateOldArchivesIfNeeded().catch(e => console.error(e)))
         .finally(() => { loadArchives().then(setArchives).catch(e => console.error(e)); });
     } else {
       setPinErr("PIN yanlışdır. Yenidən cəhd edin.");
