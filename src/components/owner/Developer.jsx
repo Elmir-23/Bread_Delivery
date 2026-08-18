@@ -3,7 +3,7 @@ import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
 import { loadBackups, windowLabel, getOldestBackupAgeDays, deleteOldBackups } from "../../services/backup";
-import { cleanupLegacyArchiveDocs, importArchiveFromBackup, dedupeYearArchive } from "../../services/archive";
+import { importArchiveFromBackup } from "../../services/archive";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -37,10 +37,7 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [restorePinErr, setRestorePinErr] = useState("");
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [cleanupRunning, setCleanupRunning] = useState(false);
-  const [archiveCleanupConfirm, setArchiveCleanupConfirm] = useState(false);
-  const [archiveCleanupRunning, setArchiveCleanupRunning] = useState(false);
   const [archiveImportRunning, setArchiveImportRunning] = useState(false);
-  const [archiveDedupeRunning, setArchiveDedupeRunning] = useState(false);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
@@ -91,23 +88,6 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
     }
   };
 
-  // BİR DƏFƏLİK: yeni illik-fayl sisteminə keçməzdən əvvəlki fərdi arxiv sənədlərini
-  // təmizləyir. Uğurlu köçürmədən sonra səhifə yenilənir ki, siyahı yenilənsin.
-  const handleCleanupLegacyArchives = async () => {
-    setArchiveCleanupRunning(true);
-    try {
-      const count = await cleanupLegacyArchiveDocs();
-      toast$(count > 0 ? `✓ ${count} köhnə arxiv sənədi təmizləndi` : "Təmizlənəcək köhnə arxiv yoxdur");
-      if (count > 0) setTimeout(() => window.location.reload(), 1200);
-    } catch (e) {
-      console.error("cleanupLegacyArchiveDocs xətası:", e);
-      toast$(`❌ Təmizlənmədi — ${e?.message || "naməlum xəta"}`);
-    } finally {
-      setArchiveCleanupRunning(false);
-      setArchiveCleanupConfirm(false);
-    }
-  };
-
   // Backup JSON faylından köhnə pəncərəni bərpa edib il faylına əlavə edir.
   // Fayl seçən kimi işə düşür — canlı data-ya toxunmur, yalnız arxiv faylını yeniləyir.
   const handleImportArchiveFile = async (e) => {
@@ -133,28 +113,6 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       toast$(`❌ İdxal olunmadı — ${e2?.message || "naməlum xəta"}`);
     } finally {
       setArchiveImportRunning(false);
-    }
-  };
-
-  // Cari ilin arxiv faylındakı dublikat sətirləri təmizləyir.
-  const handleDedupeArchive = async () => {
-    setArchiveDedupeRunning(true);
-    try {
-      const year = new Date().getFullYear().toString();
-      const result = await dedupeYearArchive(year);
-      if (!result) {
-        toast$(`${year} üçün arxiv faylı tapılmadı`);
-      } else if (result.before === result.after) {
-        toast$("Dublikat sətir tapılmadı — fayl artıq təmizdir");
-      } else {
-        toast$(`✓ ${result.before - result.after} dublikat sətir silindi (${result.after} unikal sətir qaldı)`);
-        setTimeout(() => window.location.reload(), 1200);
-      }
-    } catch (e) {
-      console.error("dedupeYearArchive xətası:", e);
-      toast$(`❌ Təmizlənmədi — ${e?.message || "naməlum xəta"}`);
-    } finally {
-      setArchiveDedupeRunning(false);
     }
   };
 
@@ -350,48 +308,12 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: "1.5rem" }}>
-        <button
-          onClick={() => setArchiveCleanupConfirm(true)}
-          style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }}
-        >
-          🧹 Köhnə fərdi arxivləri təmizlə
-        </button>
-        <label
-          style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: archiveImportRunning ? "default" : "pointer", opacity: archiveImportRunning ? 0.6 : 1 }}
-        >
-          {archiveImportRunning ? "İdxal olunur…" : "📥 Backup-dan bərpa et"}
-          <input type="file" accept=".json,application/json" onChange={handleImportArchiveFile} disabled={archiveImportRunning} style={{ display: "none" }} />
-        </label>
-        <button
-          onClick={handleDedupeArchive}
-          disabled={archiveDedupeRunning}
-          style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: archiveDedupeRunning ? "default" : "pointer", opacity: archiveDedupeRunning ? 0.6 : 1 }}
-        >
-          {archiveDedupeRunning ? "Təmizlənir…" : "🔁 Dublikatları sil"}
-        </button>
-      </div>
-
-      {archiveCleanupConfirm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-          <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 8, textAlign: "center" }}>🧹 Köhnə arxivləri təmizlə</div>
-            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16, textAlign: "center" }}>
-              Yeni illik-fayl sisteminə keçməzdən əvvəlki fərdi arxiv sənədləri təmizlənəcək. Real data itmir — lazım olan hissə il faylına köçürülür, qalanı artıq canlı data-da mövcuddur.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...c.outlineBtn, color: "var(--text2)", flex: 1 }} onClick={() => setArchiveCleanupConfirm(false)} disabled={archiveCleanupRunning}>Ləğv et</button>
-              <button
-                style={{ ...c.outlineBtn, color: "var(--text)", flex: 1 }}
-                onClick={handleCleanupLegacyArchives}
-                disabled={archiveCleanupRunning}
-              >
-                {archiveCleanupRunning ? "Təmizlənir…" : "Təmizlə"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <label
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: archiveImportRunning ? "default" : "pointer", opacity: archiveImportRunning ? 0.6 : 1, marginBottom: "1.5rem", width: "fit-content" }}
+      >
+        {archiveImportRunning ? "İdxal olunur…" : "📥 Backup-dan bərpa et"}
+        <input type="file" accept=".json,application/json" onChange={handleImportArchiveFile} disabled={archiveImportRunning} style={{ display: "none" }} />
+      </label>
 
       {/* Reset */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>⚠️ Məlumatları sıfırla</div>
