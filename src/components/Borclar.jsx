@@ -48,25 +48,31 @@ export default function Borclar({ db_data }) {
 
     const yigilan = selPayments[i] || selPayments[String(i)] || 0;
 
-    // Gün sonuna qədər borc
-    let debtUpToDate = 0;
-    Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
-      if (date > selDate) return;
-      const shopSess = shops[i] || {};
-      SESS.forEach(sv => {
-        const d = shopSess[sv.id]; if (!d) return;
-        const k = d.given?.kura || 0;
-        const dd = d.given?.damiryolu || 0;
-        const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
-        const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
-        debtUpToDate += Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
-        debtUpToDate += Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+    // Gün sonuna qədər borc — bugünkü authoritative db_data.debts[i]-dən GERİYƏ
+    // hesablanır (əvvəllər olduğu kimi ən erkən tarixdən SIFIRDAN irəli YOX).
+    // Bu üsul arxivləşdirmə (60 gündən köhnə datanın silinməsi) və açılış
+    // balanslarından TƏSİRLƏNMİR, çünki yalnız selDate-dən bu günə qədər olan
+    // (həmişə canlı qalan) araliqdaki hərəkətlərdən istifadə edir.
+    let debtUpToDate = db_data.debts?.[i] || 0;
+    if (!isToday) {
+      Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
+        if (date <= selDate || date > TODAY) return;
+        const shopSess = shops[i] || {};
+        SESS.forEach(sv => {
+          const d = shopSess[sv.id]; if (!d) return;
+          const k = d.given?.kura || 0;
+          const dd = d.given?.damiryolu || 0;
+          const lk = sv.id === "morning" ? (d.leftover?.kura || 0) : 0;
+          const ld = sv.id === "morning" ? (d.leftover?.damiryolu || 0) : 0;
+          debtUpToDate -= Math.max(0, k - lk) * (shop.kura ?? db_data.prices.kura);
+          debtUpToDate -= Math.max(0, dd - ld) * (shop.damiryolu ?? db_data.prices.damiryolu);
+        });
       });
-    });
-    Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
-      if (date > selDate) return;
-      debtUpToDate -= payments[i] || payments[String(i)] || 0;
-    });
+      Object.entries(db_data.debtPayments || {}).forEach(([date, payments]) => {
+        if (date <= selDate || date > TODAY) return;
+        debtUpToDate += payments[i] || payments[String(i)] || 0;
+      });
+    }
 
     const gunSonu = parseFloat(debtUpToDate.toFixed(2));
     const evvelki = parseFloat((gunSonu - dayGiven + yigilan).toFixed(2));
