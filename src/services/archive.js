@@ -220,28 +220,56 @@ export async function cleanupLegacyArchiveDocs() {
 
 // Backup JSON-dan (JSON bərpa faylının `data` sahəsi) köhnə pəncərəni yenidən
 // qurub müvafiq il faylına ƏLAVƏ edir. Eyni buildCSV + eyni birləşdirmə məntiqi
-// istifadə olunur ki, normal gündəlik arxivləşdirmə ilə TAM UYĞUN nəticə çıxsın —
-// təkrarlanma riski yoxdur. Canlı `app/data`-ya HEÇ TOXUNMUR, yalnız arxiv faylını yeniləyir.
-// Qaytarır: { imported, year } və ya { imported: 0 } (bu pəncərədə arxivlənəcək data yoxdursa).
+// istifadə olunur ki, normal gündəlik arxivləşdirmə ilə TAM UYĞUN nəticə çıxsın.
+// Canlı `app/data`-ya HEÇ TOXUNMUR, yalnız arxiv faylını yeniləyir.
+// TƏHLÜKƏSİZLİK: əgər bu pəncərə artıq (tam və ya qismən) arxivlənibsə, İDXAL RƏDD
+// EDİLİR — eyni faylın təkrar yüklənməsi TƏKRARLANMIŞ sətirlər yaratmasın deyə.
+// Qaytarır: { imported, year } və ya { imported: 0, reason: "empty" | "overlap" }.
 export async function importArchiveFromBackup(backupData, keepDays = 60) {
   const today = todayStr();
   const cutoff = addDays(today, -keepDays);
   const built = buildCSV(backupData, { to: addDays(cutoff, -1) });
-  if (!built) return { imported: 0 };
+  if (!built) return { imported: 0, reason: "empty" };
 
   const year = built.endDate.slice(0, 4);
   const yearRef = doc(db, "archives", yearDocId(year));
   const s = await getDoc(yearRef);
   const existing = s.exists() ? s.data() : null;
 
+  if (existing?.endDate && built.startDate <= existing.endDate) {
+    // Bu pəncərə (və ya bir hissəsi) artıq arxivdə var — təkrar əlavə etmə.
+    return { imported: 0, reason: "overlap" };
+  }
+
   const newLines = built.csv.split("\n").slice(1).filter(Boolean);
   const csv = (existing?.csv || CSV_HEADER) + newLines.join("\n") + (newLines.length ? "\n" : "");
   const rowCount = (existing?.rowCount || 0) + built.rowCount;
   const startDate = existing?.startDate && existing.startDate < built.startDate ? existing.startDate : built.startDate;
-  const endDate = existing?.endDate && existing.endDate > built.endDate ? existing.endDate : built.endDate;
+  const endDate = built.endDate; // artıq yoxlanılıb ki, existing.endDate-dən sonradır
 
   await setDoc(yearRef, { archivedOn: endDate, year, csv, rowCount, startDate, endDate, updatedAt: Date.now() });
   return { imported: built.rowCount, year };
+}
+
+// Cari il faylındakı TAM EYNİ (dublikat) sətirləri təmizləyir — sıra qorunur,
+// yalnız hər sətrin İLK görünüşü saxlanılır. rowCount düzgün sayla YENİLƏNİR.
+// Qaytarır: { before, after } sətir sayları, və ya null (fayl yoxdursa).
+export async function dedupeYearArchive(year) {
+  const yearRef = doc(db, "archives", yearDocId(year));
+  const s = await getDoc(yearRef);
+  if (!s.exists()) return null;
+  const data = s.data();
+  const lines = (data.csv || CSV_HEADER).split("\n").filter(Boolean);
+  const header = lines[0];
+  const bodyLines = lines.slice(1);
+  const seen = new Set();
+  const unique = [];
+  bodyLines.forEach(line => {
+    if (!seen.has(line)) { seen.add(line); unique.push(line); }
+  });
+  const csv = header + "\n" + unique.join("\n") + (unique.length ? "\n" : "");
+  await setDoc(yearRef, { ...data, csv, rowCount: unique.length, updatedAt: Date.now() });
+  return { before: bodyLines.length, after: unique.length };
 }
 
 export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
