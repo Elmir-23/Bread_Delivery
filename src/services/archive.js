@@ -272,10 +272,11 @@ export async function dedupeYearArchive(year) {
   return { before: bodyLines.length, after: unique.length };
 }
 
-export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
-  const t = todayStr(); let s = t;
-  if (repPeriod === "week") s = addDaysFn(t, -6);
-  if (repPeriod === "month") s = addDaysFn(t, -29);
+// `from`/`to` (YYYY-MM-DD) çağıran tərəfindən veriləcək — funksiya artıq repPeriod-u
+// özü təfsir ETMİR (əvvəlki bug: "Aralıq" rejimini tanımırdı, sadəcə bu günü ixrac
+// edirdi). `label` fayl adı üçün istifadə olunur (məs. "week", "month", "range").
+export function exportCSVFile(db_data, from, to, shopKura, shopRail, label, toast$) {
+  const s = from, t = to;
   const runningDebt = {};
   db_data.shops.forEach((_, i) => { runningDebt[i] = db_data.debts?.[i] || 0; });
   Object.entries(db_data.deliveries || {}).forEach(([date, shops]) => {
@@ -315,7 +316,7 @@ export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn,
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `bread-delivery-${repPeriod}.csv`;
+  a.download = `bread-delivery-${label}.csv`;
   a.click();
   toast$("CSV yüklənir…");
 }
