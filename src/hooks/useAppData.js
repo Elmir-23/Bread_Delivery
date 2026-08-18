@@ -3,7 +3,7 @@ import { db } from "../firebase";
 import { doc, onSnapshot, setDoc, getDoc, collection, addDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
-import { buildCSV, loadArchives, triggerArchiveIfNeeded, getTodayKey } from "../services/archive";
+import { buildCSV, loadArchives, archiveAndPruneIfNeeded, getTodayKey } from "../services/archive";
 import { triggerBackupIfNeeded } from "../services/backup";
 import { logAction } from "../services/logger";
 
@@ -188,8 +188,10 @@ export function useAppData(userEmail) {
       setOwnerUnlocked(true); setPinBuf(""); setPinErr("");
       setShopEdits(db_data.shops.map(s => ({ ...s, kuraStr: s.kura !== null ? String(s.kura) : "", railStr: s.damiryolu !== null ? String(s.damiryolu) : "" })));
       setSettPrices({ kura: String(db_data.prices.kura), damiryolu: String(db_data.prices.damiryolu) });
-      triggerArchiveIfNeeded(db_data).catch(e => console.error(e));
-      loadArchives().then(setArchives).catch(e => console.error(e));
+      archiveAndPruneIfNeeded(db_data)
+        .then(pruned => { if (pruned) return upd(pruned); })
+        .catch(e => console.error(e))
+        .finally(() => { loadArchives().then(setArchives).catch(e => console.error(e)); });
     } else {
       setPinErr("PIN yanlışdır. Yenidən cəhd edin.");
       setTimeout(() => { setPinBuf(""); setPinErr(""); }, 900);
