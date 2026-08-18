@@ -79,7 +79,7 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       refreshBackups();
     } catch (e) {
       console.error("deleteOldBackups xətası:", e);
-      toast$("❌ Silinmədi — Firestore Rules-də delete icazəsi yoxlayın");
+      toast$(`❌ Silinmədi — ${e?.message || "naməlum xəta"}`);
     } finally {
       setCleanupRunning(false);
       setCleanupConfirm(false);
