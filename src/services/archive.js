@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, getDocs, addDoc, doc, getDoc, setDoc, deleteDoc, query, where, limit } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS } from "../constants";
 
@@ -73,65 +73,78 @@ export function getTodayKey() {
   return todayStr();
 }
 
+const CSV_HEADER = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
+const yearDocId = (year) => `year_${year}`;
+const META_DOC_ID = "meta"; // "bu gün artıq işlənib" yoxlaması üçün — Arxivlər siyahısında göstərilmir
+
 export async function loadArchives() {
   const snap = await getDocs(collection(db, "archives"));
   return snap.docs
+    .filter(d => d.id !== META_DOC_ID)
     .map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => b.archivedOn.localeCompare(a.archivedOn));
+    .sort((a, b) => (b.archivedOn || "").localeCompare(a.archivedOn || ""));
 }
 
-// Gündə bir dəfə: `keepDays`-dan köhnə tarixləri arxivləyir (yalnız o pəncərəni
-// əhatə edən CSV) və uğurlu arxivdən SONRA canlı sənəddən silir.
-// Arxiv uğursuz olarsa budama HEÇ VAXT baş vermir (archive-before-delete qaydası).
-// Heç köhnə data yoxdursa, marker sənəd yazılır ki, gün ərzində təkrar yoxlanmasın.
+// Gündə bir dəfə: `keepDays`-dan köhnə tarixləri həmin ilin TƏK faylına ƏLAVƏ edir
+// (yeni gün, yeni sənəd YOX — cari il faylı sadəcə YENİLƏNİR) və uğurlu yazıdan
+// SONRA canlı sənəddən silir. Arxiv uğursuz olarsa budama HEÇ VAXT baş vermir.
+// İl üzrə ayrı sənəd saxlanılır ki, fayl illər keçdikcə Firestore-un 1MB sənəd
+// limitinə çatmasın (əks halda tək sonsuz fayl bir gün yenə bu problemi yaradar).
 // Qaytarır: budanmış tam `data` obyekti (yazmaq üçün), və ya null (ediləcək iş yoxdursa).
 export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
   const today = todayStr();
+  const metaRef = doc(db, "archives", META_DOC_ID);
 
   try {
-    const q = query(collection(db, "archives"), where("archivedOn", "==", today), limit(1));
-    const snap = await getDocs(q);
-    if (!snap.empty) return null; // bu gün artıq işlənib
+    const metaSnap = await getDoc(metaRef);
+    if (metaSnap.exists() && metaSnap.data().lastPruneRun === today) return null; // bu gün artıq işlənib
   } catch (e) {
     console.error("archiveAndPruneIfNeeded (yoxlama) xətası:", e);
     return null;
   }
 
   const cutoff = addDays(today, -keepDays);
-
   const oldDateSet = new Set();
   PRUNE_FIELDS.forEach(f => {
     Object.keys(data?.[f] || {}).forEach(d => { if (d < cutoff) oldDateSet.add(d); });
   });
 
   if (oldDateSet.size === 0) {
-    try {
-      await addDoc(collection(db, "archives"), { archivedOn: today, rowCount: 0, marker: true });
-    } catch (e) {
-      console.error("archiveAndPruneIfNeeded (marker) xətası:", e);
-    }
+    try { await setDoc(metaRef, { lastPruneRun: today }, { merge: true }); }
+    catch (e) { console.error("archiveAndPruneIfNeeded (meta yazma) xətası:", e); }
     return null;
   }
 
   const built = buildCSV(data, { to: addDays(cutoff, -1) });
-  try {
-    if (built) {
-      await addDoc(collection(db, "archives"), {
-        archivedOn: today,
-        windowStart: built.startDate, windowEnd: built.endDate,
-        rowCount: built.rowCount, startDate: built.startDate, endDate: built.endDate,
-        csv: built.csv,
-        windowed: true, // yalnız bu pəncərənin YENİ sətirləri — tam tarixçə TƏKRARI deyil
-      });
-    } else {
-      // Köhnə tarix açarları var (məs. boş expenses/sweets günləri) amma delivery sətri yoxdur.
-      await addDoc(collection(db, "archives"), { archivedOn: today, rowCount: 0, marker: true, windowed: true });
+  if (built) {
+    const year = built.endDate.slice(0, 4);
+    const yearRef = doc(db, "archives", yearDocId(year));
+    let existing = null;
+    try {
+      const s = await getDoc(yearRef);
+      existing = s.exists() ? s.data() : null;
+    } catch (e) {
+      console.error(`archiveAndPruneIfNeeded (${year} oxuma) xətası:`, e);
+      return null; // arxivə əlavə edilə bilmədi — budama BAŞ VERMİR
     }
-  } catch (e) {
-    // Arxiv yazıla bilmədi — budama DAYANDIRILIR, canlı data toxunulmaz qalır.
-    console.error("archiveAndPruneIfNeeded (yazma) xətası:", e);
-    return null;
+
+    const newLines = built.csv.split("\n").slice(1).filter(Boolean); // başlıq sətrini atla
+    const csv = (existing?.csv || CSV_HEADER) + newLines.join("\n") + (newLines.length ? "\n" : "");
+    const rowCount = (existing?.rowCount || 0) + built.rowCount;
+    const startDate = existing?.startDate && existing.startDate < built.startDate ? existing.startDate : built.startDate;
+    const endDate = existing?.endDate && existing.endDate > built.endDate ? existing.endDate : built.endDate;
+
+    try {
+      await setDoc(yearRef, { archivedOn: endDate, year, csv, rowCount, startDate, endDate, updatedAt: Date.now() });
+    } catch (e) {
+      // Fayla yazıla bilmədi — budama DAYANDIRILIR, canlı data toxunulmaz qalır.
+      console.error(`archiveAndPruneIfNeeded (${year} yazma) xətası:`, e);
+      return null;
+    }
   }
+
+  try { await setDoc(metaRef, { lastPruneRun: today }, { merge: true }); }
+  catch (e) { console.error("archiveAndPruneIfNeeded (meta yazma) xətası:", e); }
 
   // Arxiv uğurla yazıldı — indi köhnə açarları canlı obyektdən sil (dərin-kopya ilə).
   const pruned = {};
@@ -143,87 +156,6 @@ export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
   });
 
   return { ...data, ...pruned };
-}
-
-// CSV başlıq sətri — konsolidasiya zamanı yeni illik sənəd yaradılarkən istifadə olunur.
-const CSV_HEADER = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
-const mainDocId = (year) => `main_${year}`;
-
-// `keepDays`-dan köhnə FƏRDİ arxiv sənədlərini il üzrə TƏK sənədə birləşdirir.
-// Niyə illik (sonsuz böyüyən tək sənəd yox): CSV mətni sənəd sahəsi kimi saxlanılır,
-// hər il üçün ayrıca sənəd olmasa, illər keçdikcə Firestore-un 1MB sənəd limitinə
-// çatardıq — elə bu problemi bir az əvvəl app/data-da həll etmişdik.
-// Fərdi sənədlər TƏK-TƏK silinir (batch yox) — backup silinməsindəki "Transaction
-// too big" xətasından qaçmaq üçün eyni ehtiyat.
-// Qaytarır: birləşdirilib silinən fərdi sənəd sayı.
-export async function consolidateOldArchivesIfNeeded(keepDays = 30) {
-  const cutoff = addDays(todayStr(), -keepDays);
-  const snap = await getDocs(collection(db, "archives"));
-  const candidates = snap.docs.filter(d => {
-    const data = d.data();
-    if (data.isMain) return false;    // artıq birləşdirilmiş illik sənədləri ötür
-    if (data.resetBy) return false;   // sıfırlama-öncəsi arxivlər HƏMİŞƏ toxunulmaz qalır
-    if (!data.windowed) return false; // "windowed" işarəsi olmayan köhnə (tam-tarixçə) dump-lar
-                                       // BİRLƏŞDİRİLMİR — TƏKRARLANMIŞ sətirlərin qarşısını almaq üçün.
-                                       // Belə sənədlər sadəcə toxunulmadan qalır (say məhduddur, artmır).
-    return data.archivedOn && data.archivedOn < cutoff;
-  });
-  if (candidates.length === 0) return 0;
-
-  const byYear = {};
-  candidates.forEach(d => {
-    const data = d.data();
-    const year = data.archivedOn.slice(0, 4);
-    if (!byYear[year]) byYear[year] = [];
-    byYear[year].push({ ref: d.ref, data });
-  });
-
-  let mergedCount = 0;
-  for (const [year, docs] of Object.entries(byYear)) {
-    const mainRef = doc(db, "archives", mainDocId(year));
-    let existing = null;
-    try {
-      const existingSnap = await getDoc(mainRef);
-      existing = existingSnap.exists() ? existingSnap.data() : null;
-    } catch (e) {
-      console.error(`consolidateOldArchivesIfNeeded (${year} oxuma) xətası:`, e);
-      continue; // bu il üçün nə birləşdir, nə də sil
-    }
-
-    let csv = existing?.csv || CSV_HEADER;
-    let rowCount = existing?.rowCount || 0;
-    let startDate = existing?.startDate || null;
-    let endDate = existing?.endDate || null;
-
-    docs.sort((a, b) => (a.data.archivedOn || "").localeCompare(b.data.archivedOn || ""));
-    docs.forEach(({ data }) => {
-      if (!data.csv || !data.rowCount) return; // marker sənədlər — əlavə ediləcək sətir yoxdur
-      const lines = data.csv.split("\n").slice(1).filter(Boolean); // başlıq sətrini atla
-      csv += lines.join("\n") + (lines.length ? "\n" : "");
-      rowCount += data.rowCount;
-      if (data.startDate && (!startDate || data.startDate < startDate)) startDate = data.startDate;
-      if (data.endDate && (!endDate || data.endDate > endDate)) endDate = data.endDate;
-    });
-
-    try {
-      await setDoc(mainRef, { archivedOn: mainDocId(year), isMain: true, year, csv, rowCount, startDate, endDate, updatedAt: Date.now() });
-    } catch (e) {
-      // Birləşdirilmiş sənəd yazıla bilmədi — bu il üçün fərdi sənədlər TOXUNULMAZ qalır.
-      console.error(`consolidateOldArchivesIfNeeded (${year} yazma) xətası:`, e);
-      continue;
-    }
-
-    // Uğurla birləşdirildi — indi fərdi köhnə sənədləri sil.
-    for (const { ref } of docs) {
-      try {
-        await deleteDoc(ref);
-        mergedCount++;
-      } catch (e) {
-        console.error("Arxiv sənədi silinmədi:", e);
-      }
-    }
-  }
-  return mergedCount;
 }
 
 export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
