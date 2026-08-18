@@ -121,10 +121,11 @@ export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
         windowStart: built.startDate, windowEnd: built.endDate,
         rowCount: built.rowCount, startDate: built.startDate, endDate: built.endDate,
         csv: built.csv,
+        windowed: true, // yalnız bu pəncərənin YENİ sətirləri — tam tarixçə TƏKRARI deyil
       });
     } else {
       // Köhnə tarix açarları var (məs. boş expenses/sweets günləri) amma delivery sətri yoxdur.
-      await addDoc(collection(db, "archives"), { archivedOn: today, rowCount: 0, marker: true });
+      await addDoc(collection(db, "archives"), { archivedOn: today, rowCount: 0, marker: true, windowed: true });
     }
   } catch (e) {
     // Arxiv yazıla bilmədi — budama DAYANDIRILIR, canlı data toxunulmaz qalır.
@@ -160,7 +161,11 @@ export async function consolidateOldArchivesIfNeeded(keepDays = 30) {
   const snap = await getDocs(collection(db, "archives"));
   const candidates = snap.docs.filter(d => {
     const data = d.data();
-    if (data.isMain) return false; // artıq birləşdirilmiş illik sənədləri ötür
+    if (data.isMain) return false;    // artıq birləşdirilmiş illik sənədləri ötür
+    if (data.resetBy) return false;   // sıfırlama-öncəsi arxivlər HƏMİŞƏ toxunulmaz qalır
+    if (!data.windowed) return false; // "windowed" işarəsi olmayan köhnə (tam-tarixçə) dump-lar
+                                       // BİRLƏŞDİRİLMİR — TƏKRARLANMIŞ sətirlərin qarşısını almaq üçün.
+                                       // Belə sənədlər sadəcə toxunulmadan qalır (say məhduddur, artmır).
     return data.archivedOn && data.archivedOn < cutoff;
   });
   if (candidates.length === 0) return 0;
