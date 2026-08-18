@@ -1,9 +1,17 @@
 import { db } from "../firebase";
-import { collection, getDocs, addDoc } from "firebase/firestore";
-import { todayStr } from "../utils/dates";
+import { collection, getDocs, addDoc, query, where, limit } from "firebase/firestore";
+import { todayStr, addDays } from "../utils/dates";
 import { SESS } from "../constants";
 
-export function buildCSV(data) {
+// Budanacaq / arxivlənəcək tarix-açarlı sahələr. `debts` bura DAXİL DEYİL —
+// o, ayrıca idarə olunan cari balansdır və budama onu heç vaxt toxunmamalıdır.
+const PRUNE_FIELDS = ["deliveries", "debtPayments", "expenses", "sweets", "handovers"];
+
+// opts.from / opts.to verilərsə (YYYY-MM-DD), yalnız bu aralıqdakı sətirlər
+// CSV-yə yazılır. Borc hesablaması isə HƏMİŞƏ tam tarixçə üzərində gedir —
+// əks halda pəncərədən kənar illərin təsiri ilə balans səhv çıxar.
+export function buildCSV(data, opts = {}) {
+  const { from = null, to = null } = opts;
   const { deliveries, debtPayments, debts, shops, prices } = data;
   const shopKuraP = (i) => shops[i]?.kura ?? prices?.kura ?? 0.55;
   const shopDamiP = (i) => shops[i]?.damiryolu ?? prices?.damiryolu ?? 0.65;
@@ -11,6 +19,8 @@ export function buildCSV(data) {
   const SESS_LABELS = { morning: "Səhər", afternoon: "Günorta", evening: "Axşam" };
   const allDates = Object.keys(deliveries || {}).sort();
   if (!allDates.length) return null;
+  const inWindow = (d) => (!from || d >= from) && (!to || d <= to);
+
   const runningDebt = {};
   shops.forEach((_, i) => { runningDebt[i] = debts?.[i] || 0; });
   Object.entries(deliveries || {}).forEach(([, shopData]) => {
@@ -25,8 +35,10 @@ export function buildCSV(data) {
   Object.entries(debtPayments || {}).forEach(([, shopData]) => {
     Object.entries(shopData).forEach(([idx, amount]) => { runningDebt[parseInt(idx)] += amount; });
   });
+
   let csv = "Date,Shop,Session,Kura Given,Damiryolu Given,Kura Price,Damiryolu Price,Revenue,Leftover Kura,Leftover Damiryolu,Debt,Collected Money\n";
   let rowCount = 0;
+  let firstRowDate = null, lastRowDate = null;
   allDates.forEach(date => {
     const shopData = deliveries[date];
     const dayPayments = debtPayments?.[date] || {};
@@ -44,12 +56,17 @@ export function buildCSV(data) {
         runningDebt[i] += rev;
         let collected = 0;
         if (sv === lastSessId && collectedToday > 0) { collected = collectedToday; runningDebt[i] -= collected; }
+        // Borc vəziyyəti yuxarıda YENİLƏNDİ — sətir yalnız pəncərə daxilindədirsə yazılır.
+        if (!inWindow(date)) return;
         csv += `${date},${shopName},${SESS_LABELS[sv]},${k},${r},${shopKuraP(i).toFixed(2)},${shopDamiP(i).toFixed(2)},${rev.toFixed(2)},${lk},${lr},${runningDebt[i].toFixed(2)},${collected > 0 ? collected.toFixed(2) : ""}\n`;
         rowCount++;
+        if (!firstRowDate) firstRowDate = date;
+        lastRowDate = date;
       });
     });
   });
-  return { csv, rowCount, startDate: allDates[0], endDate: allDates[allDates.length - 1] };
+  if (!rowCount) return null;
+  return { csv, rowCount, startDate: firstRowDate, endDate: lastRowDate };
 }
 
 export function getTodayKey() {
@@ -63,15 +80,68 @@ export async function loadArchives() {
     .sort((a, b) => b.archivedOn.localeCompare(a.archivedOn));
 }
 
-export async function triggerArchiveIfNeeded(data) {
+// Gündə bir dəfə: `keepDays`-dan köhnə tarixləri arxivləyir (yalnız o pəncərəni
+// əhatə edən CSV) və uğurlu arxivdən SONRA canlı sənəddən silir.
+// Arxiv uğursuz olarsa budama HEÇ VAXT baş vermir (archive-before-delete qaydası).
+// Heç köhnə data yoxdursa, marker sənəd yazılır ki, gün ərzində təkrar yoxlanmasın.
+// Qaytarır: budanmış tam `data` obyekti (yazmaq üçün), və ya null (ediləcək iş yoxdursa).
+export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
   const today = todayStr();
-  const snap = await getDocs(collection(db, "archives"));
-  const alreadyDone = snap.docs.some(d => d.data().archivedOn === today);
-  if (alreadyDone) return;
-  const built = buildCSV(data);
-  if (!built) return;
-  const { csv, rowCount, startDate, endDate } = built;
-  await addDoc(collection(db, "archives"), { weekMonday: today, archivedOn: today, rowCount, startDate, endDate, csv });
+
+  try {
+    const q = query(collection(db, "archives"), where("archivedOn", "==", today), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) return null; // bu gün artıq işlənib
+  } catch (e) {
+    console.error("archiveAndPruneIfNeeded (yoxlama) xətası:", e);
+    return null;
+  }
+
+  const cutoff = addDays(today, -keepDays);
+
+  const oldDateSet = new Set();
+  PRUNE_FIELDS.forEach(f => {
+    Object.keys(data?.[f] || {}).forEach(d => { if (d < cutoff) oldDateSet.add(d); });
+  });
+
+  if (oldDateSet.size === 0) {
+    try {
+      await addDoc(collection(db, "archives"), { archivedOn: today, rowCount: 0, marker: true });
+    } catch (e) {
+      console.error("archiveAndPruneIfNeeded (marker) xətası:", e);
+    }
+    return null;
+  }
+
+  const built = buildCSV(data, { to: addDays(cutoff, -1) });
+  try {
+    if (built) {
+      await addDoc(collection(db, "archives"), {
+        archivedOn: today,
+        windowStart: built.startDate, windowEnd: built.endDate,
+        rowCount: built.rowCount, startDate: built.startDate, endDate: built.endDate,
+        csv: built.csv,
+      });
+    } else {
+      // Köhnə tarix açarları var (məs. boş expenses/sweets günləri) amma delivery sətri yoxdur.
+      await addDoc(collection(db, "archives"), { archivedOn: today, rowCount: 0, marker: true });
+    }
+  } catch (e) {
+    // Arxiv yazıla bilmədi — budama DAYANDIRILIR, canlı data toxunulmaz qalır.
+    console.error("archiveAndPruneIfNeeded (yazma) xətası:", e);
+    return null;
+  }
+
+  // Arxiv uğurla yazıldı — indi köhnə açarları canlı obyektdən sil (dərin-kopya ilə).
+  const pruned = {};
+  PRUNE_FIELDS.forEach(f => {
+    const src = data?.[f] || {};
+    const copy = {};
+    Object.entries(src).forEach(([d, v]) => { if (!(d < cutoff)) copy[d] = v; });
+    pruned[f] = copy;
+  });
+
+  return { ...data, ...pruned };
 }
 
 export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
