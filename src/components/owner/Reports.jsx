@@ -135,7 +135,7 @@ export default function Reports({ db_data, repPeriod, setRepPeriod, calcStats, s
         )}
       </div>
 
-      <button style={c.outlineBtn} onClick={() => exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDays, toast$)}>
+      <button style={c.outlineBtn} onClick={() => exportCSVFile(db_data, s, end, shopKura, shopRail, repPeriod, toast$)}>
         ⬇ CSV / Excel ixrac et
       </button>
     </div>
