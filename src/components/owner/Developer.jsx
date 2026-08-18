@@ -3,7 +3,7 @@ import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
 import { loadBackups, windowLabel, getOldestBackupAgeDays, deleteOldBackups } from "../../services/backup";
-import { cleanupLegacyArchiveDocs, importArchiveFromBackup } from "../../services/archive";
+import { cleanupLegacyArchiveDocs, importArchiveFromBackup, dedupeYearArchive } from "../../services/archive";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -40,6 +40,7 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [archiveCleanupConfirm, setArchiveCleanupConfirm] = useState(false);
   const [archiveCleanupRunning, setArchiveCleanupRunning] = useState(false);
   const [archiveImportRunning, setArchiveImportRunning] = useState(false);
+  const [archiveDedupeRunning, setArchiveDedupeRunning] = useState(false);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
@@ -122,6 +123,8 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       if (result.imported > 0) {
         toast$(`✓ ${result.imported} sətir ${result.year} faylına əlavə edildi`);
         setTimeout(() => window.location.reload(), 1200);
+      } else if (result.reason === "overlap") {
+        toast$("Bu pəncərə artıq arxivdə var — təkrar əlavə edilmədi");
       } else {
         toast$("Bu fayldan əlavə ediləcək köhnə data tapılmadı");
       }
@@ -130,6 +133,28 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       toast$(`❌ İdxal olunmadı — ${e2?.message || "naməlum xəta"}`);
     } finally {
       setArchiveImportRunning(false);
+    }
+  };
+
+  // Cari ilin arxiv faylındakı dublikat sətirləri təmizləyir.
+  const handleDedupeArchive = async () => {
+    setArchiveDedupeRunning(true);
+    try {
+      const year = new Date().getFullYear().toString();
+      const result = await dedupeYearArchive(year);
+      if (!result) {
+        toast$(`${year} üçün arxiv faylı tapılmadı`);
+      } else if (result.before === result.after) {
+        toast$("Dublikat sətir tapılmadı — fayl artıq təmizdir");
+      } else {
+        toast$(`✓ ${result.before - result.after} dublikat sətir silindi (${result.after} unikal sətir qaldı)`);
+        setTimeout(() => window.location.reload(), 1200);
+      }
+    } catch (e) {
+      console.error("dedupeYearArchive xətası:", e);
+      toast$(`❌ Təmizlənmədi — ${e?.message || "naməlum xəta"}`);
+    } finally {
+      setArchiveDedupeRunning(false);
     }
   };
 
@@ -338,6 +363,13 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
           {archiveImportRunning ? "İdxal olunur…" : "📥 Backup-dan bərpa et"}
           <input type="file" accept=".json,application/json" onChange={handleImportArchiveFile} disabled={archiveImportRunning} style={{ display: "none" }} />
         </label>
+        <button
+          onClick={handleDedupeArchive}
+          disabled={archiveDedupeRunning}
+          style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: archiveDedupeRunning ? "default" : "pointer", opacity: archiveDedupeRunning ? 0.6 : 1 }}
+        >
+          {archiveDedupeRunning ? "Təmizlənir…" : "🔁 Dublikatları sil"}
+        </button>
       </div>
 
       {archiveCleanupConfirm && (
