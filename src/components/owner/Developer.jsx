@@ -3,6 +3,7 @@ import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
 import { loadBackups, windowLabel, getOldestBackupAgeDays, deleteOldBackups } from "../../services/backup";
+import { cleanupLegacyArchiveDocs } from "../../services/archive";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -36,6 +37,8 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [restorePinErr, setRestorePinErr] = useState("");
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [cleanupRunning, setCleanupRunning] = useState(false);
+  const [archiveCleanupConfirm, setArchiveCleanupConfirm] = useState(false);
+  const [archiveCleanupRunning, setArchiveCleanupRunning] = useState(false);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
@@ -83,6 +86,23 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
     } finally {
       setCleanupRunning(false);
       setCleanupConfirm(false);
+    }
+  };
+
+  // BİR DƏFƏLİK: yeni illik-fayl sisteminə keçməzdən əvvəlki fərdi arxiv sənədlərini
+  // təmizləyir. Uğurlu köçürmədən sonra səhifə yenilənir ki, siyahı yenilənsin.
+  const handleCleanupLegacyArchives = async () => {
+    setArchiveCleanupRunning(true);
+    try {
+      const count = await cleanupLegacyArchiveDocs();
+      toast$(count > 0 ? `✓ ${count} köhnə arxiv sənədi təmizləndi` : "Təmizlənəcək köhnə arxiv yoxdur");
+      if (count > 0) setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      console.error("cleanupLegacyArchiveDocs xətası:", e);
+      toast$(`❌ Təmizlənmədi — ${e?.message || "naməlum xəta"}`);
+    } finally {
+      setArchiveCleanupRunning(false);
+      setArchiveCleanupConfirm(false);
     }
   };
 
@@ -263,7 +283,7 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       {archives.length === 0 ? (
         <div style={{ ...c.block, textAlign: "center", color: "var(--text2)", fontSize: 13, padding: "1.5rem", marginBottom: "1.5rem" }}>Hələ arxiv yoxdur.</div>
       ) : (
-        <div style={{ ...c.listCard, marginBottom: "1.5rem" }}>
+        <div style={{ ...c.listCard, marginBottom: 12 }}>
           {archives.map((arc, i) => (
             <div key={arc.id} style={{ ...c.listRow(i === archives.length - 1), gap: 8 }}>
               <div style={{ flex: 1 }}>
@@ -275,6 +295,34 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
               <button onClick={() => downloadArchive(arc)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text)", cursor: "pointer", flexShrink: 0 }}>⬇ CSV</button>
             </div>
           ))}
+        </div>
+      )}
+
+      <button
+        onClick={() => setArchiveCleanupConfirm(true)}
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer", marginBottom: "1.5rem" }}
+      >
+        🧹 Köhnə fərdi arxivləri təmizlə (bir dəfəlik)
+      </button>
+
+      {archiveCleanupConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 8, textAlign: "center" }}>🧹 Köhnə arxivləri təmizlə</div>
+            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16, textAlign: "center" }}>
+              Yeni illik-fayl sisteminə keçməzdən əvvəlki fərdi arxiv sənədləri təmizlənəcək. Real data itmir — lazım olan hissə il faylına köçürülür, qalanı artıq canlı data-da mövcuddur.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={{ ...c.outlineBtn, color: "var(--text2)", flex: 1 }} onClick={() => setArchiveCleanupConfirm(false)} disabled={archiveCleanupRunning}>Ləğv et</button>
+              <button
+                style={{ ...c.outlineBtn, color: "var(--text)", flex: 1 }}
+                onClick={handleCleanupLegacyArchives}
+                disabled={archiveCleanupRunning}
+              >
+                {archiveCleanupRunning ? "Təmizlənir…" : "Təmizlə"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
