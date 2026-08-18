@@ -3,7 +3,7 @@ import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
 import { loadBackups, windowLabel, getOldestBackupAgeDays, deleteOldBackups } from "../../services/backup";
-import { cleanupLegacyArchiveDocs } from "../../services/archive";
+import { cleanupLegacyArchiveDocs, importArchiveFromBackup } from "../../services/archive";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -39,6 +39,7 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [cleanupRunning, setCleanupRunning] = useState(false);
   const [archiveCleanupConfirm, setArchiveCleanupConfirm] = useState(false);
   const [archiveCleanupRunning, setArchiveCleanupRunning] = useState(false);
+  const [archiveImportRunning, setArchiveImportRunning] = useState(false);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
@@ -103,6 +104,32 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
     } finally {
       setArchiveCleanupRunning(false);
       setArchiveCleanupConfirm(false);
+    }
+  };
+
+  // Backup JSON faylından köhnə pəncərəni bərpa edib il faylına əlavə edir.
+  // Fayl seçən kimi işə düşür — canlı data-ya toxunmur, yalnız arxiv faylını yeniləyir.
+  const handleImportArchiveFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // eyni faylı təkrar seçmək mümkün olsun deyə
+    if (!file) return;
+    setArchiveImportRunning(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const backupData = parsed.data || parsed; // backup JSON {..., data: {...}} formatındadır
+      const result = await importArchiveFromBackup(backupData);
+      if (result.imported > 0) {
+        toast$(`✓ ${result.imported} sətir ${result.year} faylına əlavə edildi`);
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast$("Bu fayldan əlavə ediləcək köhnə data tapılmadı");
+      }
+    } catch (e2) {
+      console.error("importArchiveFromBackup xətası:", e2);
+      toast$(`❌ İdxal olunmadı — ${e2?.message || "naməlum xəta"}`);
+    } finally {
+      setArchiveImportRunning(false);
     }
   };
 
@@ -298,12 +325,20 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
         </div>
       )}
 
-      <button
-        onClick={() => setArchiveCleanupConfirm(true)}
-        style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer", marginBottom: "1.5rem" }}
-      >
-        🧹 Köhnə fərdi arxivləri təmizlə (bir dəfəlik)
-      </button>
+      <div style={{ display: "flex", gap: 8, marginBottom: "1.5rem" }}>
+        <button
+          onClick={() => setArchiveCleanupConfirm(true)}
+          style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: "pointer" }}
+        >
+          🧹 Köhnə fərdi arxivləri təmizlə
+        </button>
+        <label
+          style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 500, border: "1px solid var(--border2)", borderRadius: 8, background: "none", color: "var(--text2)", cursor: archiveImportRunning ? "default" : "pointer", opacity: archiveImportRunning ? 0.6 : 1 }}
+        >
+          {archiveImportRunning ? "İdxal olunur…" : "📥 Backup-dan bərpa et"}
+          <input type="file" accept=".json,application/json" onChange={handleImportArchiveFile} disabled={archiveImportRunning} style={{ display: "none" }} />
+        </label>
+      </div>
 
       {archiveCleanupConfirm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
