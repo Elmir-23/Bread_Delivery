@@ -218,6 +218,32 @@ export async function cleanupLegacyArchiveDocs() {
   return deleted;
 }
 
+// Backup JSON-dan (JSON bərpa faylının `data` sahəsi) köhnə pəncərəni yenidən
+// qurub müvafiq il faylına ƏLAVƏ edir. Eyni buildCSV + eyni birləşdirmə məntiqi
+// istifadə olunur ki, normal gündəlik arxivləşdirmə ilə TAM UYĞUN nəticə çıxsın —
+// təkrarlanma riski yoxdur. Canlı `app/data`-ya HEÇ TOXUNMUR, yalnız arxiv faylını yeniləyir.
+// Qaytarır: { imported, year } və ya { imported: 0 } (bu pəncərədə arxivlənəcək data yoxdursa).
+export async function importArchiveFromBackup(backupData, keepDays = 60) {
+  const today = todayStr();
+  const cutoff = addDays(today, -keepDays);
+  const built = buildCSV(backupData, { to: addDays(cutoff, -1) });
+  if (!built) return { imported: 0 };
+
+  const year = built.endDate.slice(0, 4);
+  const yearRef = doc(db, "archives", yearDocId(year));
+  const s = await getDoc(yearRef);
+  const existing = s.exists() ? s.data() : null;
+
+  const newLines = built.csv.split("\n").slice(1).filter(Boolean);
+  const csv = (existing?.csv || CSV_HEADER) + newLines.join("\n") + (newLines.length ? "\n" : "");
+  const rowCount = (existing?.rowCount || 0) + built.rowCount;
+  const startDate = existing?.startDate && existing.startDate < built.startDate ? existing.startDate : built.startDate;
+  const endDate = existing?.endDate && existing.endDate > built.endDate ? existing.endDate : built.endDate;
+
+  await setDoc(yearRef, { archivedOn: endDate, year, csv, rowCount, startDate, endDate, updatedAt: Date.now() });
+  return { imported: built.rowCount, year };
+}
+
 export function exportCSVFile(db_data, repPeriod, shopKura, shopRail, addDaysFn, toast$) {
   const t = todayStr(); let s = t;
   if (repPeriod === "week") s = addDaysFn(t, -6);
