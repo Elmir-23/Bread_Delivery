@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, getDocs, doc, setDoc, query, where, orderBy, limit, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, query, where, orderBy, limit } from "firebase/firestore";
 
 // ── Backup pəncərələri (bitişik, boşluqsuz) ──
 // Səhər:   06:00 – 11:59
@@ -95,12 +95,12 @@ export async function getOldestBackupAgeDays() {
   }
 }
 
-// `keepDays`-dan köhnə backup sənədlərini toplu şəkildə silir (Firebase Console-a
-// getmədən). Hər backup sənədi bütün app/data-nın tam surətini saxladığı üçün
-// Firestore avtomatik olaraq onun bütün iç sahələrini indeksləyir — bu da bir
-// batch-də çox sənəd silinərkən "Transaction too big" xətasına səbəb olur.
-// Ona görə balaca hissələrlə (25-lik) silinir. Developer roluna Firestore
-// Rules-də delete icazəsi verilməlidir, əks halda permission-denied xətası olar.
+// `keepDays`-dan köhnə backup sənədlərini silir (Firebase Console-a getmədən).
+// Hər backup sənədi bütün app/data-nın tam surətini saxladığı üçün ÇOX BÖYÜKDÜR —
+// Firestore-un avtomatik indeksləməsi ilə birlikdə hətta kiçik batch-lər belə
+// "Transaction too big" xətası verir. Ona görə TƏK-TƏK, batch olmadan silinir —
+// yavaşdır, amma sənəd ölçüsündən asılı olmayaraq işləyir.
+// Developer roluna Firestore Rules-də delete icazəsi verilməlidir.
 // Qaytarır: silinən sənəd sayı.
 export async function deleteOldBackups(keepDays = 30) {
   const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
@@ -108,15 +108,15 @@ export async function deleteOldBackups(keepDays = 30) {
   const snap = await getDocs(q);
   if (snap.empty) return 0;
 
-  const refs = snap.docs.map(d => d.ref);
-  const CHUNK = 25; // kiçik saxlanılır — backup sənədləri böyük olduğu üçün
   let deleted = 0;
-  for (let i = 0; i < refs.length; i += CHUNK) {
-    const chunk = refs.slice(i, i + CHUNK);
-    const batch = writeBatch(db);
-    chunk.forEach(ref => batch.delete(ref));
-    await batch.commit();
-    deleted += chunk.length;
+  for (const d of snap.docs) {
+    try {
+      await deleteDoc(d.ref);
+      deleted++;
+    } catch (e) {
+      console.error(`Backup silinmədi (${d.id}):`, e);
+      // Bir sənəd uğursuz olsa belə davam et — qalanları silməyə çalış
+    }
   }
   return deleted;
 }
