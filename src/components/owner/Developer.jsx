@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { c } from "../../styles/styles";
 import { fmtDateShort } from "../../utils/dates";
 import { loadLogs } from "../../services/logger";
-import { loadBackups, windowLabel, getOldestBackupAgeDays } from "../../services/backup";
+import { loadBackups, windowLabel, getOldestBackupAgeDays, deleteOldBackups } from "../../services/backup";
 
 const ACTION_LABELS = {
   delivery_save: "🚚 Çatdırılma",
@@ -34,6 +34,8 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
   const [restoreTarget, setRestoreTarget] = useState(null);
   const [restorePinBuf, setRestorePinBuf] = useState("");
   const [restorePinErr, setRestorePinErr] = useState("");
+  const [cleanupConfirm, setCleanupConfirm] = useState(false);
+  const [cleanupRunning, setCleanupRunning] = useState(false);
 
   useEffect(() => {
     loadLogs(50).then(l => { setLogs(l); setLogsLoading(false); }).catch(e => { console.error(e); setLogsLoading(false); });
@@ -58,6 +60,29 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
         setRestorePinErr("PIN yanlışdır");
         setTimeout(() => { setRestorePinBuf(""); setRestorePinErr(""); }, 900);
       }
+    }
+  };
+
+  const refreshBackups = () => {
+    setBackupsLoading(true);
+    loadBackups().then(b => { setBackups(b); setBackupsLoading(false); }).catch(e => { console.error(e); setBackupsLoading(false); });
+    getOldestBackupAgeDays().then(setOldestAge).catch(e => console.error(e));
+  };
+
+  // 30 gündən köhnə backup-ları toplu şəkildə silir. Firestore Rules-də developer
+  // üçün delete icazəsi olmalıdır — əks halda permission-denied xətası göstərilir.
+  const handleCleanupBackups = async () => {
+    setCleanupRunning(true);
+    try {
+      const count = await deleteOldBackups(30);
+      toast$(count > 0 ? `✓ ${count} köhnə backup silindi` : "Silinəcək köhnə backup yoxdur");
+      refreshBackups();
+    } catch (e) {
+      console.error("deleteOldBackups xətası:", e);
+      toast$("❌ Silinmədi — Firestore Rules-də delete icazəsi yoxlayın");
+    } finally {
+      setCleanupRunning(false);
+      setCleanupConfirm(false);
     }
   };
 
@@ -143,15 +168,40 @@ export default function Developer({ db_data, archives, resetConfirm, setResetCon
       {/* Backuplar (JSON snapshot) */}
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>💾 Backuplar (JSON)</div>
 
-      {oldestAge !== null && oldestAge >= 60 && (
+      {oldestAge !== null && oldestAge >= 30 && (
         <div style={{ ...c.block, border: "1px solid #fbbf24", background: "rgba(251,191,36,0.08)", marginBottom: 12 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#92400e", marginBottom: 4 }}>
             🧹 Backupları təmizləmək vaxtıdır
           </div>
-          <div style={{ fontSize: 12, color: "var(--text2)" }}>
-            Ən köhnə backup {oldestAge} gün əvvələ aiddir. Firestore yeri şişməsin deyə,
-            Firebase Console → <strong>backups</strong> koleksiyasından köhnə sənədləri əl ilə silə bilərsiniz.
-            (Heç nə avtomatik silinmir.)
+          <div style={{ fontSize: 12, color: "var(--text2)", marginBottom: 10 }}>
+            Ən köhnə backup {oldestAge} gün əvvələ aiddir. (Heç nə avtomatik silinmir.)
+          </div>
+          <button
+            onClick={() => setCleanupConfirm(true)}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", fontSize: 12, fontWeight: 600, border: "1px solid #fbbf24", borderRadius: 8, background: "none", color: "#92400e", cursor: "pointer" }}
+          >
+            🧹 30 gündən köhnə backupları sil
+          </button>
+        </div>
+      )}
+
+      {cleanupConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "var(--bg)", borderRadius: 16, padding: "1.5rem", width: "100%", maxWidth: 340, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#92400e", marginBottom: 8, textAlign: "center" }}>🧹 Backupları sil</div>
+            <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 16, textAlign: "center" }}>
+              30 gündən köhnə bütün backup snapshot-ları silinəcək. Bu, canlı data-ya təsir etmir — yalnız köhnə JSON snapshot-larıdır.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={{ ...c.outlineBtn, color: "var(--text2)", flex: 1 }} onClick={() => setCleanupConfirm(false)} disabled={cleanupRunning}>Ləğv et</button>
+              <button
+                style={{ ...c.outlineBtn, color: "#92400e", borderColor: "#fbbf24", flex: 1 }}
+                onClick={handleCleanupBackups}
+                disabled={cleanupRunning}
+              >
+                {cleanupRunning ? "Silinir…" : "Sil"}
+              </button>
+            </div>
           </div>
         </div>
       )}
