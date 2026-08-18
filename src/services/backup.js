@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, getDocs, doc, setDoc, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, query, where, orderBy, limit, writeBatch } from "firebase/firestore";
 
 // ── Backup pəncərələri (bitişik, boşluqsuz) ──
 // Səhər:   06:00 – 11:59
@@ -93,4 +93,27 @@ export async function getOldestBackupAgeDays() {
     console.error("getOldestBackupAgeDays xətası:", e);
     return null;
   }
+}
+
+// `keepDays`-dan köhnə backup sənədlərini toplu şəkildə silir (Firebase Console-a
+// getmədən). Firestore batch limiti 500 əməliyyatdır — buna görə 450-lik hissələrə
+// bölünür. Developer roluna Firestore Rules-də delete icazəsi verilməlidir, əks
+// halda bu funksiya permission-denied xətası ilə uğursuz olar.
+// Qaytarır: silinən sənəd sayı.
+export async function deleteOldBackups(keepDays = 30) {
+  const cutoff = Date.now() - keepDays * 24 * 60 * 60 * 1000;
+  const q = query(collection(db, "backups"), where("snapshotAt", "<", cutoff));
+  const snap = await getDocs(q);
+  if (snap.empty) return 0;
+
+  const refs = snap.docs.map(d => d.ref);
+  let deleted = 0;
+  for (let i = 0; i < refs.length; i += 450) {
+    const chunk = refs.slice(i, i + 450);
+    const batch = writeBatch(db);
+    chunk.forEach(ref => batch.delete(ref));
+    await batch.commit();
+    deleted += chunk.length;
+  }
+  return deleted;
 }
