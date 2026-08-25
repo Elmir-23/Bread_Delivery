@@ -45,5 +45,6 @@ export const DEFAULT_DB = {
   handovers: {},
   kassaBalance: 0,
   kassaAdjustment: 0,
+  dayStart: null, // { date, balance } — son təsdiqlənmiş təhvildə dondurulan "günə başlanan qalıq"
   shops: DEF_SHOPS.map(n => ({ name: n.name, kura: n.kura, damiryolu: n.damiryolu }))
 };

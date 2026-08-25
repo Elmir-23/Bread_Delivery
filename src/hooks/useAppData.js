@@ -6,22 +6,7 @@ import { SESS, EXP_CATS, DEFAULT_DB } from "../constants";
 import { buildCSV, loadArchives, archiveAndPruneIfNeeded, getTodayKey } from "../services/archive";
 import { triggerBackupIfNeeded } from "../services/backup";
 import { logAction } from "../services/logger";
-
-// Köhnə {tarix: rəqəm} formatını {tarix: {amount, confirmed}} formatına çevirir
-// Köhnə rəqəm = artıq verilmiş/təsdiqlənmiş say kimi qəbul edilir
-const normalizeHandover = (raw) => {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === "number") return { amount: raw, confirmed: true };
-  if (typeof raw === "object" && "amount" in raw) return raw;
-  return null;
-};
-
-// Yalnız təsdiqlənmiş (confirmed: true) olan təhvilin məbləğini qaytarır
-const confirmedAmount = (raw) => {
-  const h = normalizeHandover(raw);
-  if (!h) return 0;
-  return h.confirmed ? (h.amount || 0) : 0;
-};
+import { normalizeHandover, confirmedAmount } from "../utils/kassa";
 
 export function useAppData(userEmail) {
   const [db_data, setDbData] = useState(null);
@@ -371,7 +356,7 @@ export function useAppData(userEmail) {
         return;
       }
       await logAction("reset", userEmail, { archiveId: archiveRef.id, rowCount, debtsBefore: db_data.debts || {} });
-      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, sweets: {}, kassaBalance: 0, kassaAdjustment: 0 }, { skipBackup: true });
+      const ok = await upd({ ...db_data, deliveries: {}, debtPayments: {}, debts: {}, expenses: {}, handovers: {}, sweets: {}, kassaBalance: 0, kassaAdjustment: 0, dayStart: null }, { skipBackup: true });
       if (!ok) return;
       setResetConfirm(false); setResetPinBuf(""); setResetPinErr("");
       const list = await loadArchives(); setArchives(list);
@@ -404,6 +389,14 @@ export function useAppData(userEmail) {
     return parseFloat(kassa.toFixed(2));
   };
 
+  // Bir günün təhvili təsdiqlənəndə "günə başlanan qalıq" bu anda DONDURULUR —
+  // yalnız tarix irəlidirsə (və ya heç vaxt dondurulmayıbsa) yenilənir ki, köhnə
+  // tarixli təsdiq (məs. geriyə düzəliş) təzə donmuş dəyəri geri qaytarmasın.
+  const _advanceDayStart = (current, date, balance) => {
+    if (current && current.date >= date) return current;
+    return { date, balance };
+  };
+
   // Şirniyyat gəliri saxla (sürücü + sahibkar edit üçün)
   const saveSweet = async (amount, dateOverride) => {
     const TODAY = dateOverride || todayStr();
@@ -433,13 +426,16 @@ export function useAppData(userEmail) {
     const confirmed = forceConfirmed ? true : false;
     handovers[TODAY] = { amount: amt, confirmed };
     const newKassaBalance = _calcKassaFromData(db_data, handovers);
-    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    const dayStart = confirmed ? _advanceDayStart(db_data.dayStart, TODAY, newKassaBalance) : db_data.dayStart;
+    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance, dayStart });
     if (!ok) return;
     logAction("handover_save", userEmail, { date: TODAY, amount: amt, confirmed });
     toast$(forceConfirmed ? "Təhvil yeniləndi ✓" : "Təhvil saxlanıldı ✓");
   };
 
-  // Sahibkar təhvili təsdiqləyir (confirmed: true) — kassadan çıxır
+  // Sahibkar təhvili təsdiqləyir (confirmed: true) — kassadan çıxır.
+  // Bu an "günə başlanan qalıq" DONDURULUR (dayStart) ki, sonrakı gecə yarısı
+  // saat dəyişəndə ekranda görünən rəqəm özbaşına "sıçramasın".
   const confirmHandover = async (dateOverride) => {
     const TODAY = dateOverride || todayStr();
     const handovers = { ...(db_data.handovers || {}) };
@@ -448,7 +444,8 @@ export function useAppData(userEmail) {
     if (existing.confirmed) { toast$("Artıq təsdiqlənib"); return; }
     handovers[TODAY] = { amount: existing.amount, confirmed: true };
     const newKassaBalance = _calcKassaFromData(db_data, handovers);
-    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance });
+    const dayStart = _advanceDayStart(db_data.dayStart, TODAY, newKassaBalance);
+    const ok = await upd({ ...db_data, handovers, kassaBalance: newKassaBalance, dayStart });
     if (!ok) return;
     logAction("handover_confirm", userEmail, { date: TODAY, amount: existing.amount, kassaBalance: newKassaBalance });
     toast$("Təhvil təsdiqləndi ✓");
@@ -566,7 +563,9 @@ export function useAppData(userEmail) {
       currentWithoutAdj += yigilan - exp - tehvil;
     });
     const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
-    const ok = await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target });
+    // Əl ilə düzəliş köhnə dondurulmuş "günə başlanan qalıq"-ı etibarsız edir —
+    // sıfırlanır ki, sonrakı ekranlar canlı (indi düzəldilmiş) balansdan çıxış etsin.
+    const ok = await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target, dayStart: null });
     if (!ok) return;
     logAction("kassa_adjustment", userEmail, { targetBalance: target, adjustment: newAdj });
     toast$("Kassa yeniləndi ✓");

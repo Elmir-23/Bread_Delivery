@@ -2,21 +2,7 @@ import { useState } from "react";
 import { c } from "../styles/styles";
 import { todayStr, addDays, fmtDate } from "../utils/dates";
 import { SESS } from "../constants";
-
-// Köhnə {tarix: rəqəm} formatını normallaşdırır (geriyə uyğunluq)
-const normalizeHandover = (raw) => {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === "number") return { amount: raw, confirmed: true };
-  if (typeof raw === "object" && "amount" in raw) return raw;
-  return null;
-};
-
-// Yalnız təsdiqlənmiş təhvili kassa üçün sayır
-const confirmedAmount = (raw) => {
-  const h = normalizeHandover(raw);
-  if (!h) return 0;
-  return h.confirmed ? (h.amount || 0) : 0;
-};
+import { calcKassa } from "../utils/kassa";
 
 export default function Borclar({ db_data }) {
   const TODAY = todayStr();
@@ -89,32 +75,10 @@ export default function Borclar({ db_data }) {
   const totGunSonu   = shopRows.reduce((a, r) => a + r.gunSonu, 0);
   const totUmumiBorc = parseFloat((totEvvelki + totDayGiven).toFixed(2));
 
-  // Kassa qalığı — Dashboard ilə eyni hesablama (kumulyativ, tarixdən asılı deyil)
-  // kassaAdjustment + Σ(yığılan − xərc − təsdiqlənmiş_təhvil), bütün tarixlər üzrə
-  // kassaStart = bu günə qədər (bu gün xaric) = günə başlanan qalıq
-  const { kassaBalance, kassaStart } = (() => {
-    const allDates = [...new Set([
-      ...Object.keys(db_data.debtPayments || {}),
-      ...Object.keys(db_data.expenses || {}),
-      ...Object.keys(db_data.handovers || {}),
-      ...Object.keys(db_data.sweets || {}),
-    ])];
-    let kassa = db_data.kassaAdjustment || 0;
-    let start = db_data.kassaAdjustment || 0;
-    allDates.forEach(date => {
-      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
-      const sweet = db_data.sweets?.[date] || 0;
-      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-      const tehvil = confirmedAmount(db_data.handovers?.[date]);
-      const delta = yigilan + sweet - exp - tehvil;
-      kassa += delta;
-      if (date < TODAY) start += delta; // yalnız bugündən əvvəlki tarixlər
-    });
-    return {
-      kassaBalance: parseFloat(kassa.toFixed(2)),
-      kassaStart: parseFloat(start.toFixed(2)),
-    };
-  })();
+  // Kassa qalığı — Dashboard ilə eyni ortaq hesablama (src/utils/kassa.js).
+  // kassaStart ("günə başlanan qalıq") təhvil təsdiqlənən anda dondurulur, canlı
+  // saata görə gecə yarısı sıçramır.
+  const { kassaBalance, kassaStart, dayStartStale } = calcKassa(db_data, TODAY);
 
   const thStyle = (center) => ({
     padding: "6px 8px", fontSize: 10, fontWeight: 700,
@@ -151,6 +115,11 @@ export default function Borclar({ db_data }) {
           <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 4 }}>
             Günə başlanan qalıq: <span style={{ fontWeight: 600, color: "var(--text)" }}>{kassaStart.toFixed(2)} ₼</span>
           </div>
+          {dayStartStale && (
+            <div style={{ fontSize: 11, color: "#b45309", marginTop: 4 }}>
+              ⚠️ Gün bağlandıqdan sonra bu tarixə aid data dəyişib — yoxlayın
+            </div>
+          )}
         </div>
       </div>
 
