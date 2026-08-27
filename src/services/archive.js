@@ -2,6 +2,7 @@ import { db } from "../firebase";
 import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { todayStr, addDays } from "../utils/dates";
 import { SESS } from "../constants";
+import { confirmedAmount } from "../utils/kassa";
 
 // Budanacaq / arxivlənəcək tarix-açarlı sahələr. `debts` bura DAXİL DEYİL —
 // o, ayrıca idarə olunan cari balansdır və budama onu heç vaxt toxunmamalıdır.
@@ -91,8 +92,15 @@ export async function loadArchives() {
 // İl üzrə ayrı sənəd saxlanılır ki, fayl illər keçdikcə Firestore-un 1MB sənəd
 // limitinə çatmasın (əks halda tək sonsuz fayl bir gün yenə bu problemi yaradar).
 // Qaytarır: budanmış tam `data` obyekti (yazmaq üçün), və ya null (ediləcək iş yoxdursa).
+// Müvəqqəti dayandırma: sahibkarın xahişi ilə, tətbiqin 31 avqust sıfırlanmasına
+// qədər HEÇ bir arxivləşdirmə/budama işləməsin (kassa itkisi düzəlişindən sonra
+// əlavə təhlükəsizlik tədbiri kimi). Bu tarixdən sonra funksiya avtomatik
+// normal işləməyə qayıdır — heç bir əlavə addım tələb olunmur.
+const PRUNE_PAUSED_UNTIL = "2026-08-31";
+
 export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
   const today = todayStr();
+  if (today < PRUNE_PAUSED_UNTIL) return null;
   const metaRef = doc(db, "archives", META_DOC_ID);
 
   try {
@@ -146,6 +154,21 @@ export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
   try { await setDoc(metaRef, { lastPruneRun: today }, { merge: true }); }
   catch (e) { console.error("archiveAndPruneIfNeeded (meta yazma) xətası:", e); }
 
+  // Kassa (nağd) balansı bütün debtPayments/expenses/sweets/handovers tarixçəsini
+  // TOPLAYARAQ hesablanır (bax: src/utils/kassa.js) — budanan tarixlər canlı
+  // obyektdən silinəndə həmin günlərin xalis kassa təsiri (yığılan+şirniyyat-xərc-təhvil)
+  // TOPLAMDAN da yoxa çıxardı, baxmayaraq ki, o pul REAL olaraq kassada qalır.
+  // `debts` üçün olduğu kimi, bu xalis təsiri silinmədən ƏVVƏL kassaAdjustment-ə
+  // köçürürük ki, budama kassa balansını DƏYİŞMƏSİN — sadəcə köhnə sətirləri arxivləsin.
+  let oldKassaDelta = 0;
+  oldDateSet.forEach(date => {
+    const yigilan = Object.values(data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
+    const sweet = data.sweets?.[date] || 0;
+    const exp = (data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
+    const tehvil = confirmedAmount(data.handovers?.[date]);
+    oldKassaDelta += yigilan + sweet - exp - tehvil;
+  });
+
   // Arxiv uğurla yazıldı — indi köhnə açarları canlı obyektdən sil (dərin-kopya ilə).
   const pruned = {};
   PRUNE_FIELDS.forEach(f => {
@@ -154,6 +177,7 @@ export async function archiveAndPruneIfNeeded(data, keepDays = 60) {
     Object.entries(src).forEach(([d, v]) => { if (!(d < cutoff)) copy[d] = v; });
     pruned[f] = copy;
   });
+  pruned.kassaAdjustment = parseFloat(((data.kassaAdjustment || 0) + oldKassaDelta).toFixed(2));
 
   return { ...data, ...pruned };
 }

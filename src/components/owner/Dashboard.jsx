@@ -58,7 +58,7 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
   // Kassa = kassaAdjustment + bütün tarixlər üzrə (yığılan − xərc − TƏSDİQLƏNMİŞ_təhvil).
   // kassaStart ("günə başlanan qalıq") təhvil təsdiqlənən anda DONDURULUR (db_data.dayStart) —
   // canlı saata görə gecə yarısı sıçramır. Bax: src/utils/kassa.js
-  const { kassaBalance, kassaStart, dayStartStale } = calcKassa(db_data, t);
+  const { kassaBalance, kassaStart } = calcKassa(db_data, t);
 
   // Bugünkü təhvil vəziyyəti
   const rawToday = db_data.handovers?.[todayStr()];
@@ -200,11 +200,6 @@ export default function Dashboard({ db_data, dashPeriod, setDashPeriod, calcStat
           <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 4 }}>
             Günə başlanan qalıq: <span style={{ fontWeight: 600, color: "var(--text)" }}>{kassaStart.toFixed(2)} ₼</span>
           </div>
-          {dayStartStale && (
-            <div style={{ fontSize: 11, color: "#b45309", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-              ⚠️ Gün bağlandıqdan sonra bu tarixə aid data dəyişib — yoxlayın
-            </div>
-          )}
         </div>
 
         {/* Təhvil vəziyyəti */}

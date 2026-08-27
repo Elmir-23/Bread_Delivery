@@ -31,9 +31,8 @@ const round2 = (n) => parseFloat(n.toFixed(2));
 //
 // İndi: sahibkar bir günün təhvilini TƏSDİQLƏYƏNDƏ həmin an balans db_data.dayStart-da
 // DONDURULUR (bax useAppData._advanceDayStart) və elə bu dondurulmuş dəyər göstərilir —
-// saat neçə olur-olsun dəyişmir. Əgər dondurulduqdan SONRA həmin günə (və ya daha əvvələ)
-// aid data dəyişərsə (məs. geriyə düzəliş, gecikmiş xərc) — bu, dayStartStale bayrağı ilə
-// AŞKARA ÇIXARILIR, sükutla fərqli rəqəm göstərmək əvəzinə.
+// saat neçə olur-olsun dəyişmir. Sonrakı təhvil prosesi (axşam) balansı təbii şəkildə
+// yenidən tənzimləyir, ona görə burda əlavə "dəyişib" xəbərdarlığı YOXDUR.
 export function calcKassa(db_data, today = null) {
   const allDates = [...new Set([
     ...Object.keys(db_data.debtPayments || {}),
@@ -46,7 +45,6 @@ export function calcKassa(db_data, today = null) {
   const base = db_data.kassaAdjustment || 0;
   let kassa = base;
   let liveStart = base; // dayStart heç vaxt qoyulmayıbsa fallback (köhnə/yeni data)
-  let asOfFreeze = base; // dayStart.date-ə QƏDƏR (daxil) cəm — drift yoxlaması üçün
 
   allDates.forEach(date => {
     const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
@@ -56,14 +54,9 @@ export function calcKassa(db_data, today = null) {
     const delta = yigilan + sweet - exp - tehvil;
     kassa += delta;
     if (today && date < today) liveStart += delta;
-    if (dayStart && date <= dayStart.date) asOfFreeze += delta;
   });
 
   const kassaBalance = round2(kassa);
-  if (!dayStart) {
-    return { kassaBalance, kassaStart: round2(liveStart), dayStartStale: false, dayStartDate: null };
-  }
-
-  const dayStartStale = Math.abs(round2(asOfFreeze) - round2(dayStart.balance)) > 0.005;
-  return { kassaBalance, kassaStart: round2(dayStart.balance), dayStartStale, dayStartDate: dayStart.date };
+  const kassaStart = dayStart ? round2(dayStart.balance) : round2(liveStart);
+  return { kassaBalance, kassaStart };
 }
