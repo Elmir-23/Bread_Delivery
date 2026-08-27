@@ -547,30 +547,6 @@ export function useAppData(userEmail) {
     toast$("PIN dəyişdirildi ✓"); setPinOld(""); setPinNew("");
   };
 
-  const saveKassaAdjustment = async (targetBalance) => {
-    const target = parseFloat(targetBalance);
-    if (isNaN(target)) { toast$("Düzgün məbləğ daxil edin"); return; }
-    const allDates = [...new Set([
-      ...Object.keys(db_data.debtPayments || {}),
-      ...Object.keys(db_data.expenses || {}),
-      ...Object.keys(db_data.handovers || {}),
-    ])].sort();
-    let currentWithoutAdj = 0;
-    allDates.forEach(date => {
-      const yigilan = Object.values(db_data.debtPayments?.[date] || {}).reduce((a, b) => a + b, 0);
-      const exp = (db_data.expenses?.[date] || []).reduce((a, e) => a + e.amount, 0);
-      const tehvil = confirmedAmount(db_data.handovers?.[date]);
-      currentWithoutAdj += yigilan - exp - tehvil;
-    });
-    const newAdj = parseFloat((target - currentWithoutAdj).toFixed(2));
-    // Əl ilə düzəliş köhnə dondurulmuş "günə başlanan qalıq"-ı etibarsız edir —
-    // sıfırlanır ki, sonrakı ekranlar canlı (indi düzəldilmiş) balansdan çıxış etsin.
-    const ok = await upd({ ...db_data, kassaAdjustment: newAdj, kassaBalance: target, dayStart: null });
-    if (!ok) return;
-    logAction("kassa_adjustment", userEmail, { targetBalance: target, adjustment: newAdj });
-    toast$("Kassa yeniləndi ✓");
-  };
-
   // Backup-dan bərpa: seçilmiş snapshot-ın data-sını app/data-ya yazır.
   // backupData — backup sənədinin `data` sahəsi (tam app/data surəti).
   // skipBackup: true — bərpanın özü yeni backup yaratmasın (köhnə vəziyyəti snapshot etməsin).
@@ -616,7 +592,7 @@ export function useAppData(userEmail) {
     saveEditDebt, saveEditCollected, saveExpense, deleteExpense,
     resetAllData, calcStats, calcExpenses,
     saveShops, addShop, removeShop, confirmRemoveShop,
-    savePrices, changePin, saveHandover, confirmHandover, saveKassaAdjustment,
+    savePrices, changePin, saveHandover, confirmHandover,
     saveSweet, restoreBackup,
     // normalizeHandover köməkçisi — Dashboard-da istifadə üçün export
     normalizeHandover,

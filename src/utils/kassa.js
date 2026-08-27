@@ -61,9 +61,13 @@ export function calcKassa(db_data, today = null) {
 
   const kassaBalance = round2(kassa);
   if (!dayStart) {
-    return { kassaBalance, kassaStart: round2(liveStart), dayStartStale: false, dayStartDate: null };
+    return { kassaBalance, kassaStart: round2(liveStart), dayStartStale: false, dayStartDate: null, dayStartDrift: 0 };
   }
 
-  const dayStartStale = Math.abs(round2(asOfFreeze) - round2(dayStart.balance)) > 0.005;
-  return { kassaBalance, kassaStart: round2(dayStart.balance), dayStartStale, dayStartDate: dayStart.date };
+  // dayStartDrift > 0 → dondurulmuş rəqəm ƏSLİNDƏN BÖYÜKDÜR (dondurulduqdan sonra
+  // həmin tarixə/daha əvvələ aid nə isə ÇIXILIB, məs. gecikmiş xərc əlavə olunub).
+  // dayStartDrift < 0 → dondurulmuş rəqəm ƏSLİNDƏN KİÇİKDİR (sonradan nə isə ƏLAVƏ olunub).
+  const dayStartDrift = round2(dayStart.balance - asOfFreeze);
+  const dayStartStale = Math.abs(dayStartDrift) > 0.005;
+  return { kassaBalance, kassaStart: round2(dayStart.balance), dayStartStale, dayStartDate: dayStart.date, dayStartDrift };
 }

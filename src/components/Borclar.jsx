@@ -78,7 +78,7 @@ export default function Borclar({ db_data }) {
   // Kassa qalığı — Dashboard ilə eyni ortaq hesablama (src/utils/kassa.js).
   // kassaStart ("günə başlanan qalıq") təhvil təsdiqlənən anda dondurulur, canlı
   // saata görə gecə yarısı sıçramır.
-  const { kassaBalance, kassaStart, dayStartStale } = calcKassa(db_data, TODAY);
+  const { kassaBalance, kassaStart, dayStartStale, dayStartDate, dayStartDrift } = calcKassa(db_data, TODAY);
 
   const thStyle = (center) => ({
     padding: "6px 8px", fontSize: 10, fontWeight: 700,
@@ -116,8 +116,11 @@ export default function Borclar({ db_data }) {
             Günə başlanan qalıq: <span style={{ fontWeight: 600, color: "var(--text)" }}>{kassaStart.toFixed(2)} ₼</span>
           </div>
           {dayStartStale && (
-            <div style={{ fontSize: 11, color: "#b45309", marginTop: 4 }}>
-              ⚠️ Gün bağlandıqdan sonra bu tarixə aid data dəyişib — yoxlayın
+            <div style={{ fontSize: 11, color: "#b45309", marginTop: 4, lineHeight: 1.5 }}>
+              ⚠️ {fmtDate(dayStartDate)} tarixinə aid data gün bağlandıqdan sonra dəyişib
+              (fərq: {dayStartDrift > 0 ? "+" : ""}{dayStartDrift.toFixed(2)} ₼).
+              Yuxarıdan həmin tarixə keçib yoxlayın — sonradan silinmiş/dəyişdirilmiş
+              yığılan pul, xərc və ya şirniyyat qeydi ola bilər.
             </div>
           )}
         </div>
